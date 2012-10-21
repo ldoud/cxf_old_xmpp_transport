@@ -29,12 +29,11 @@ public class NodeNotificationProvider implements IQProvider {
     public IQ parseIQ(XmlPullParser parser) throws Exception {
         NodeNotificationPacket packet = new NodeNotificationPacket();
         int attribCount = parser.getAttributeCount();
-        for(int i=0; i < attribCount; i++) {
+        for (int i = 0; i < attribCount; i++) {
             String attribName = parser.getAttributeName(i);
-            if("node".equals(attribName)) {
+            if ("node".equals(attribName)) {
                 packet.setNodeName(parser.getAttributeValue(i));
-            }
-            else if ("service".equals(attribName)) {
+            } else if ("service".equals(attribName)) {
                 packet.setServiceName(parser.getAttributeValue(i));
             }
         }

@@ -90,7 +90,7 @@ public class PEPTransportFactory extends AbstractTransportFactory implements Des
             
             // Advertise interest in receiving information.
             ServiceDiscoveryManager disco = ServiceDiscoveryManager.getInstanceFor(conn);
-            disco.addFeature(nodeName+"+notify");            
+            disco.addFeature(nodeName + "+notify");            
             
             // Create destination.
             dest.setXmppConnection(conn);

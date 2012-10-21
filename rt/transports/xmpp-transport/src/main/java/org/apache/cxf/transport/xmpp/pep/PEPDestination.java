@@ -37,7 +37,7 @@ import org.jivesoftware.smackx.pubsub.ItemsExtension;
 import org.jivesoftware.smackx.pubsub.PayloadItem;
 import org.jivesoftware.smackx.pubsub.SimplePayload;
 
-public class PEPDestination extends AbstractDestination implements PacketListener{
+public class PEPDestination extends AbstractDestination implements PacketListener {
 
     private String nodeName;
     
@@ -53,13 +53,13 @@ public class PEPDestination extends AbstractDestination implements PacketListene
         EventElement event = (EventElement)msg.getExtension(
             "event", "http://jabber.org/protocol/pubsub#event");
 
-        if(nodeName.equals(event.getEvent().getNode())) {
+        if (nodeName.equals(event.getEvent().getNode())) {
             List<PacketExtension> extensions = event.getExtensions();
-            for(PacketExtension pe : extensions) {
+            for (PacketExtension pe : extensions) {
                 if (pe instanceof ItemsExtension) {
                     ItemsExtension ie = (ItemsExtension)pe;
                     @SuppressWarnings("unchecked")
-                    List<PayloadItem<SimplePayload>> items = (List<PayloadItem<SimplePayload>> )ie.getItems();
+                    List<PayloadItem<SimplePayload>> items = (List<PayloadItem<SimplePayload>>)ie.getItems();
                     invokeSoapMessages(items);
                 }
             }

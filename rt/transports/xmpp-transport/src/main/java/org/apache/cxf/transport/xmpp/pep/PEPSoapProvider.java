@@ -34,19 +34,18 @@ public class PEPSoapProvider implements PacketExtensionProvider {
         String nodeName = "";
         boolean startOfSoapMsg = false;
         while (!startOfSoapMsg) {
-            if ("publish".equals(parser.getName()) && 
-                "http://jabber.org/protocol/pubsub".equals(parser.getNamespace())){
+            if ("publish".equals(parser.getName()) 
+                && "http://jabber.org/protocol/pubsub".equals(parser.getNamespace())) {
                 nodeName = parser.getAttributeValue(1);
-            }
-            else if ("Envelope".equals(parser.getName()) && parser.getEventType() == XmlPullParser.START_TAG &&
-                ("http://www.w3.org/2003/05/soap-envelope".equals(parser.getNamespace()) ||
-                    "http://schemas.xmlsoap.org/soap/envelope/".equals(parser.getNamespace()))) {
+            } else if ("Envelope".equals(parser.getName()) 
+                    && parser.getEventType() == XmlPullParser.START_TAG
+                    && ("http://www.w3.org/2003/05/soap-envelope".equals(parser.getNamespace()) 
+                    || "http://schemas.xmlsoap.org/soap/envelope/".equals(parser.getNamespace()))) {
                 startOfSoapMsg = true;
                 
                 // Append the current text.
                 request.append(parser.getText());
-            }
-            else {
+            } else {
                 parser.next();
             }
         }

@@ -84,7 +84,7 @@ public class PubSubTransportFactory extends AbstractTransportFactory implements 
             
             // Advertise interest in receiving information.
             ServiceDiscoveryManager disco = ServiceDiscoveryManager.getInstanceFor(conn);
-            disco.addFeature(nodeName+"+notify");   
+            disco.addFeature(nodeName + "+notify");   
 
         } catch (XMPPException e) {
             throw new IOException(e);

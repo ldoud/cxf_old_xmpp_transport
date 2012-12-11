@@ -167,7 +167,11 @@ public class PubSubServiceNode extends AbstractFeature {
                     Roster roster = connection.getRoster();
                     Collection<RosterEntry> entries = roster.getEntries();
                     for (RosterEntry entry : entries) {
-                        packet.setTo(entry.getUser());
+					    // This will get the presence with the highest priority.
+						// Another option would be to us roster.getPresences and iterate through
+						// all the available presences until you find the one you want.
+					    Presence p = roster.getPresence(entry.getUser());
+                        packet.setTo(p.getFrom();
                         connection.sendPacket(packet);
                         LOGGER.log(Level.INFO, "Sent node notification to roster entry: " + entry.getUser());
                     }

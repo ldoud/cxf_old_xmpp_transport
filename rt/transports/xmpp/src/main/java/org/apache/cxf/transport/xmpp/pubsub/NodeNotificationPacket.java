@@ -23,7 +23,7 @@ import org.jivesoftware.smack.packet.IQ;
 
 class NodeNotificationPacket extends IQ  {
     
-    public static final String NAMESPACE = "lather:xmpp:node:notification";
+    public static final String NAMESPACE = "cxf:xmpp:node:notification";
     public static final String ROOT_ELEMENT = "notification";
 
     private String nodeName;

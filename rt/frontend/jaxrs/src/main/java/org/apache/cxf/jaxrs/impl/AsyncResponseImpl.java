@@ -21,8 +21,10 @@ package org.apache.cxf.jaxrs.impl;
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
+import javax.ws.rs.ServiceUnavailableException;
 import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.container.CompletionCallback;
+import javax.ws.rs.container.ResumeCallback;
 import javax.ws.rs.container.TimeoutHandler;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
@@ -31,6 +33,7 @@ import javax.ws.rs.core.Response.ResponseBuilder;
 import org.apache.cxf.continuations.Continuation;
 import org.apache.cxf.continuations.ContinuationCallback;
 import org.apache.cxf.continuations.ContinuationProvider;
+import org.apache.cxf.interceptor.Fault;
 import org.apache.cxf.jaxrs.utils.HttpUtils;
 import org.apache.cxf.message.Message;
 
@@ -38,11 +41,10 @@ import org.apache.cxf.message.Message;
 public class AsyncResponseImpl implements AsyncResponse, ContinuationCallback {
     
     private Continuation cont;
-    private long timeout = AsyncResponse.NO_TIMEOUT;
     private Message inMessage;
+    private boolean initialSuspend;
     private boolean cancelled;
-    private boolean done;
-    private boolean newTimeoutRequested;
+    private volatile boolean done;
     private boolean resumedByApplication;
     private TimeoutHandler timeoutHandler;
     
@@ -53,9 +55,7 @@ public class AsyncResponseImpl implements AsyncResponse, ContinuationCallback {
         inMessage.getExchange().put(ContinuationCallback.class, this);
         this.inMessage = inMessage;
         
-        ContinuationProvider provider = 
-            (ContinuationProvider)inMessage.get(ContinuationProvider.class.getName());
-        cont = provider.getContinuation();
+        initContinuation();
     }
     
     @Override
@@ -74,7 +74,11 @@ public class AsyncResponseImpl implements AsyncResponse, ContinuationCallback {
         inMessage.getExchange().put(AsyncResponse.class, this);
         cont.setObject(response);
         resumedByApplication = true;
-        cont.resume();
+        if (!initialSuspend) {
+            cont.resume();
+        } else {
+            initialSuspend = false;
+        }
     }
     
     @Override
@@ -94,12 +98,12 @@ public class AsyncResponseImpl implements AsyncResponse, ContinuationCallback {
     
     private synchronized void doCancel(String retryAfterHeader) {
         checkSuspended();
-        cancelled = true;
         ResponseBuilder rb = Response.status(503);
         if (retryAfterHeader != null) {
             rb.header(HttpHeaders.RETRY_AFTER, retryAfterHeader);
         }
         doResume(rb.build());
+        cancelled = true;
     }
 
     @Override
@@ -113,7 +117,7 @@ public class AsyncResponseImpl implements AsyncResponse, ContinuationCallback {
     }
 
     @Override
-    public synchronized boolean isDone() {
+    public boolean isDone() {
         return done;
     }
 
@@ -122,9 +126,9 @@ public class AsyncResponseImpl implements AsyncResponse, ContinuationCallback {
         checkCancelled();
         checkSuspended();
         inMessage.getExchange().put(AsyncResponse.class, this);
-        timeout = unit.convert(time, TimeUnit.MILLISECONDS);
-        newTimeoutRequested = true;
-        cont.resume();
+        long timeout = TimeUnit.MILLISECONDS.convert(time, unit);
+        initialSuspend = false;
+        cont.suspend(timeout);
     }
 
     @Override
@@ -147,9 +151,10 @@ public class AsyncResponseImpl implements AsyncResponse, ContinuationCallback {
         
     }
 
+    //TODO: API bug, boolean[] needs to be returned...
     @Override
     public boolean register(Object callback) throws NullPointerException {
-        return register(callback, CompletionCallback.class)[0];
+        return register(callback, CompletionCallback.class, ResumeCallback.class)[0];
     }
 
     //TODO: API bug, has to be Class<?>...
@@ -163,7 +168,7 @@ public class AsyncResponseImpl implements AsyncResponse, ContinuationCallback {
                 throw new NullPointerException();
             }
             Class<?> cls = (Class<?>)interf;
-            if (cls == CompletionCallback.class) {
+            if (cls == CompletionCallback.class && callback instanceof CompletionCallback) {
                 completionCallback = (CompletionCallback)callback;
                 result[i] = true;
             } else {
@@ -180,47 +185,14 @@ public class AsyncResponseImpl implements AsyncResponse, ContinuationCallback {
     }
     
     private void checkSuspended() {
-        if (!cont.isPending()) {
+        if (!initialSuspend && !isSuspended()) {
             throw new IllegalStateException();
         }
     }
     
-    // these methods are called by the runtime, not part of AsyncResponse    
-    public synchronized void suspend() {
-        checkCancelled();
-        cont.suspend(timeout);
-    }
-    
-    public synchronized Object getResponseObject() {
-        // it may have to be set to true only after a continuation-specific onComplete event
-        done = true;
-        return cont.getObject();
-    }
-    
-    public synchronized boolean isResumedByApplication() {
-        return resumedByApplication;
-    }
-    
-    public synchronized boolean handleTimeout() {
-        if (!resumedByApplication) {
-            if (newTimeoutRequested) {
-                newTimeoutRequested = false;
-                suspend();
-                return true;
-            } else if (timeoutHandler != null) {
-                suspend();
-                timeoutHandler.handleTimeout(this);
-                return true;
-            } else {
-                done = true;
-            }
-        }
-        return false;
-        
-    }
-
     @Override
     public void onComplete() {
+        done = true;
         if (completionCallback != null) {
             completionCallback.onComplete();
         }
@@ -229,8 +201,49 @@ public class AsyncResponseImpl implements AsyncResponse, ContinuationCallback {
     @Override
     public void onError(Throwable error) {
         if (completionCallback != null) {
-            completionCallback.onError(error);
+            Throwable actualError = error instanceof Fault ? ((Fault)error).getCause() : error;
+            completionCallback.onError(actualError);
         }
         
     }
+    
+    public synchronized void suspendContinuation() {
+        initialSuspend = false;
+        cont.suspend(AsyncResponse.NO_TIMEOUT);
+    }
+    
+    public synchronized Object getResponseObject() {
+        Object obj = cont.getObject();
+        if (!(obj instanceof Response) && !(obj instanceof Throwable)) {
+            obj = Response.ok().entity(obj).build();    
+        }
+        return obj;
+    }
+    
+    public synchronized boolean isResumedByApplication() {
+        return resumedByApplication;
+    }
+    
+    public synchronized void handleTimeout() {
+        if (!resumedByApplication) {
+            if (timeoutHandler != null) {
+                timeoutHandler.handleTimeout(this);
+            } else {
+                cont.setObject(new ServiceUnavailableException());
+            }
+        }
+    }
+
+    private void initContinuation() {
+        ContinuationProvider provider = 
+            (ContinuationProvider)inMessage.get(ContinuationProvider.class.getName());
+        cont = provider.getContinuation();
+        initialSuspend = true;
+    }
+    
+    public void prepareContinuation() {
+        initContinuation();
+    }
+    
+    
 }

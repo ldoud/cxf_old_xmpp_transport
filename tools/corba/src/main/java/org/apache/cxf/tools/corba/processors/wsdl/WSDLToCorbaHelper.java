@@ -297,7 +297,6 @@ public class WSDLToCorbaHelper {
 
     private CorbaTypeImpl processLocalElement(XmlSchemaElement element, String uri) throws Exception {
         CorbaTypeImpl membertype = new CorbaTypeImpl();
-        CorbaTypeImpl memtype = new CorbaTypeImpl();
 
         XmlSchemaType schemaType = element.getSchemaType();
         QName schemaName = element.getQName();
@@ -327,7 +326,7 @@ public class WSDLToCorbaHelper {
             if (elName ==  null) {
                 elName = createQNameTargetNamespace(elemName.getLocalPart());
             }
-            memtype = createNillableUnion(elName,
+            CorbaTypeImpl memtype = createNillableUnion(elName,
                                           name,
                                           elemtype.getQName(),
                                           elementQualified);
@@ -363,13 +362,14 @@ public class WSDLToCorbaHelper {
                                         element.getMaxOccurs(), element.getMinOccurs(), false);
             }
 
-            membertype.setName(arraytype.getName());
-            membertype.setQName(arraytype.getQName());
-            membertype.setType(arraytype.getType());
+            if (arraytype != null) {
+                membertype.setName(arraytype.getName());
+                membertype.setQName(arraytype.getQName());
+                membertype.setType(arraytype.getType());
 
-            if (arraytype != null
-                && !isDuplicate(arraytype)) {
-                typeMappingType.getStructOrExceptionOrUnion().add(arraytype);
+                if (!isDuplicate(arraytype)) {
+                    typeMappingType.getStructOrExceptionOrUnion().add(arraytype);
+                }
             }
         }
         membertype.setQualified(elementQualified);
@@ -437,7 +437,7 @@ public class WSDLToCorbaHelper {
             }
         }
 
-        if ((type instanceof Struct) && (struct.getMember().size() == 0)) {
+        if ((struct != null) && (struct.getMember().size() == 0)) {
             String msgStr = "Cannot create CORBA Struct" + struct.getName()
                             + "from container with no members";
             org.apache.cxf.common.i18n.Message msg = new org.apache.cxf.common.i18n.Message(
@@ -1082,9 +1082,11 @@ public class WSDLToCorbaHelper {
         }
 
         //Deal with Attributes defined in Extension
-        for (int i = 0; i < attrMembers.size(); i++) {
-            MemberType member = attrMembers.get(i);
-            corbaStruct.getMember().add(member);
+        if (attrMembers != null) {
+            for (int i = 0; i < attrMembers.size(); i++) {
+                MemberType member = attrMembers.get(i);
+                corbaStruct.getMember().add(member);
+            }
         }
 
         return corbaStruct;
@@ -1168,21 +1170,17 @@ public class WSDLToCorbaHelper {
         CorbaTypeImpl seqtype =
             processSequenceType(seq, defaultName, schematypeName);
 
-        if  (seqtype != null) {
-            MemberType seqmem = new MemberType();
-            seqmem.setName(seqtype.getQName().getLocalPart() + "_f");
-            QName type = createQNameCorbaNamespace(seqtype.getQName().getLocalPart());
-            seqmem.setIdltype(type);
-            seqmem.setAnonschematype(true);
-            if (seqtype.isSetQualified() && seqtype.isQualified()) {
-                seqmem.setQualified(true);
-            }
-            corbaStruct.getMember().add(seqmem);
-            if (!isDuplicate(seqtype)) {
-                typeMappingType.getStructOrExceptionOrUnion().add(seqtype);
-            }
-        } else {
-            LOG.log(Level.WARNING, "Couldnt map Sequence inside extension");
+        MemberType seqmem = new MemberType();
+        seqmem.setName(seqtype.getQName().getLocalPart() + "_f");
+        QName type = createQNameCorbaNamespace(seqtype.getQName().getLocalPart());
+        seqmem.setIdltype(type);
+        seqmem.setAnonschematype(true);
+        if (seqtype.isSetQualified() && seqtype.isQualified()) {
+            seqmem.setQualified(true);
+        }
+        corbaStruct.getMember().add(seqmem);
+        if (!isDuplicate(seqtype)) {
+            typeMappingType.getStructOrExceptionOrUnion().add(seqtype);
         }
 
         return corbaStruct;
@@ -1193,20 +1191,16 @@ public class WSDLToCorbaHelper {
         throws Exception {
 
         CorbaTypeImpl alltype = processAllType(all, defaultName, schematypeName);
-        if (alltype != null) {
-            MemberType allmem = new MemberType();
-            allmem.setName(alltype.getQName().getLocalPart() + "_f");
-            allmem.setIdltype(alltype.getQName());
-            allmem.setAnonschematype(true);
-            if (alltype.isSetQualified() && alltype.isQualified()) {
-                allmem.setQualified(true);
-            }
-            corbaStruct.getMember().add(allmem);
-            if (!isDuplicate(alltype)) {
-                typeMappingType.getStructOrExceptionOrUnion().add(alltype);
-            }
-        } else {
-            LOG.log(Level.WARNING, "Couldnt map All inside extension");
+        MemberType allmem = new MemberType();
+        allmem.setName(alltype.getQName().getLocalPart() + "_f");
+        allmem.setIdltype(alltype.getQName());
+        allmem.setAnonschematype(true);
+        if (alltype.isSetQualified() && alltype.isQualified()) {
+            allmem.setQualified(true);
+        }
+        corbaStruct.getMember().add(allmem);
+        if (!isDuplicate(alltype)) {
+            typeMappingType.getStructOrExceptionOrUnion().add(alltype);
         }
 
         return corbaStruct;
@@ -1220,16 +1214,18 @@ public class WSDLToCorbaHelper {
         Union choiceunion = createUnion(choicename, choice,
                                         defaultName, schematypeName);
 
-        String repoId = REPO_STRING + choiceunion.getQName().getLocalPart().replace('.', '/')
-            + IDL_VERSION;
-        choiceunion.setRepositoryID(repoId);
-
         MemberType choicemem = new MemberType();
-        choicemem.setName(choiceunion.getQName().getLocalPart() + "_f");
-        choicemem.setIdltype(createQNameCorbaNamespace(choiceunion.getQName().getLocalPart()));
+        if (choiceunion != null) {
+            String repoId = REPO_STRING + choiceunion.getQName().getLocalPart().replace('.', '/')
+                + IDL_VERSION;
+            choiceunion.setRepositoryID(repoId);
 
-        if ((choiceunion != null) && (!isDuplicate(choiceunion))) {
-            typeMappingType.getStructOrExceptionOrUnion().add(choiceunion);
+            choicemem.setName(choiceunion.getQName().getLocalPart() + "_f");
+            choicemem.setIdltype(createQNameCorbaNamespace(choiceunion.getQName().getLocalPart()));
+
+            if (!isDuplicate(choiceunion)) {
+                typeMappingType.getStructOrExceptionOrUnion().add(choiceunion);
+            }
         }
 
         return choicemem;
@@ -1320,24 +1316,23 @@ public class WSDLToCorbaHelper {
             }
         }
 
-
-        if (arrayEl.isNillable()) {
-            QName nilunionname = createQNameTargetNamespace(arrayType.getQName().getLocalPart() + "_nil");
-            boolean isQualified = arrayType.isSetQualified() && arrayType.isQualified();
-            arrayType = createNillableUnion(nilunionname,
-                                            elName,
-                                            arrayType.getQName(),
-                                            isQualified);
-            typeName = createQNameCorbaNamespace(arrayType.getQName().getLocalPart());
-            if (arrayType != null
-                && !isDuplicate(arrayType)) {
-                typeMappingType.getStructOrExceptionOrUnion().add(arrayType);
-            }
-        }
-
         Long maxOccurs = null;
         Long minOccurs = null;
         if (arrayEl != null) {
+            if (arrayEl.isNillable()) {
+                QName nilunionname = createQNameTargetNamespace(arrayType.getQName().getLocalPart() + "_nil");
+                boolean isQualified = arrayType.isSetQualified() && arrayType.isQualified();
+                arrayType = createNillableUnion(nilunionname,
+                                            elName,
+                                            arrayType.getQName(),
+                                            isQualified);
+                typeName = createQNameCorbaNamespace(arrayType.getQName().getLocalPart());
+                if (arrayType != null
+                    && !isDuplicate(arrayType)) {
+                    typeMappingType.getStructOrExceptionOrUnion().add(arrayType);
+                }
+            }
+
             maxOccurs = arrayEl.getMaxOccurs();
             minOccurs = arrayEl.getMinOccurs();
         }

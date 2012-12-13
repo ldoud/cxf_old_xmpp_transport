@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 import javax.ws.rs.Consumes;
+import javax.ws.rs.InternalServerErrorException;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedMap;
@@ -43,6 +44,7 @@ public class XPathProvider<T> implements MessageBodyReader<T> {
     private Map<String, String> classExpressions;
     private String globalExpression;
     private String className;
+    private boolean forceDOM;
     private Map<String, String> globalNamespaces = 
         Collections.emptyMap();
     
@@ -52,6 +54,10 @@ public class XPathProvider<T> implements MessageBodyReader<T> {
     
     public List<String> getConsumeMediaTypes() {
         return consumeMediaTypes;    
+    }
+    
+    public void setForceDOM(boolean b) {
+        forceDOM = b;
     }
 
     public void setExpression(String expr) {
@@ -73,7 +79,7 @@ public class XPathProvider<T> implements MessageBodyReader<T> {
     public boolean isReadable(Class<?> cls, Type genericType, Annotation[] annotations, MediaType mediaType) {
         
         return globalExpression != null && (className == null 
-            || className != null && className.equals(cls.getName()))  
+            || className.equals(cls.getName()))  
             || classExpressions != null && classExpressions.containsKey(cls.getName());
     }
 
@@ -83,9 +89,12 @@ public class XPathProvider<T> implements MessageBodyReader<T> {
             : classExpressions.get(cls.getName());
         if (expression == null) {
             // must not happen if isReadable() returned true
-            throw new WebApplicationException(500);
+            throw new InternalServerErrorException();
         }
         XMLSource source = new XMLSource(is);
+        if (forceDOM) {
+            source.setBuffering();
+        }
         return source.getNode(expression, globalNamespaces, cls);
     }
 

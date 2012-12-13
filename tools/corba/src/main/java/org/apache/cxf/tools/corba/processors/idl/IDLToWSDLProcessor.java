@@ -23,6 +23,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
+import java.io.IOException;
 import java.io.Writer;
 import java.net.URI;
 import java.util.ArrayList;
@@ -372,10 +373,9 @@ public class IDLToWSDLProcessor extends IDLProcessor {
     
     private Writer createOutputWriter(String name) throws Exception {        
         String outDir = outputDir;
-        String filename = name;               
         int index = name.lastIndexOf(System.getProperty("file.separator"));
         outDir = name.substring(0, index);
-        filename = name.substring(index + 1, name.length());                        
+        String filename = name.substring(index + 1, name.length());                        
         return getOutputWriter(filename, outDir);        
     }
     
@@ -438,12 +438,12 @@ public class IDLToWSDLProcessor extends IDLProcessor {
             if (!isDefaultMapping && !serviceNames.containsKey(ns)) {
                 String[] bindingTokens = bindings[i].getQName().getLocalPart().split("\\.");
                 if (bindingTokens.length > 1) {
-                    String name = "";
+                    StringBuilder name = new StringBuilder("");
                     for (int j = 0; j < bindingTokens.length - 2; j++) {
-                        name += bindingTokens[j] + ".";
+                        name.append(bindingTokens[j] + ".");
                     }
-                    name += bindingTokens[bindingTokens.length - 2] + "CORBAService";
-                    serviceNames.put(ns, name);
+                    name.append(bindingTokens[bindingTokens.length - 2] + "CORBAService");
+                    serviceNames.put(ns, name.toString());
                 } else {
                     serviceNames.put(ns, idl + "CORBAService");
                 }
@@ -501,14 +501,18 @@ public class IDLToWSDLProcessor extends IDLProcessor {
             String addr = null;
             String addrFileName = (String) env.get(ToolCorbaConstants.CFG_ADDRESSFILE); 
             if (addrFileName != null) {
+                BufferedReader bufferedReader = null;
                 try {
                     File addrFile = new File(addrFileName);
                     FileReader fileReader = new FileReader(addrFile);
-                    BufferedReader bufferedReader = new BufferedReader(fileReader);
+                    bufferedReader = new BufferedReader(fileReader);
                     addr = bufferedReader.readLine();
-                    bufferedReader.close();
                 } catch (Exception ex) {
                     throw new ToolException(ex.getMessage(), ex);
+                } finally {
+                    if (bufferedReader != null) {
+                        bufferedReader.close();
+                    }
                 }
             } else {
                 addr = (String) env.get(ToolCorbaConstants.CFG_ADDRESS);
@@ -611,7 +615,7 @@ public class IDLToWSDLProcessor extends IDLProcessor {
         return prefix;
     }
 
-    private Map<String, String> getModuleToNSMapping(String mapping) {
+    private Map<String, String> getModuleToNSMapping(String mapping) throws IOException {
         Map<String, String> map = new HashMap<String, String>();
         if ((mapping != null) && (mapping.length() > 0)) {
             if ((mapping.startsWith("[")) && (mapping.endsWith("]"))) {
@@ -631,8 +635,9 @@ public class IDLToWSDLProcessor extends IDLProcessor {
                 }
             } else if (mapping.startsWith(":")) {
                 mapping = mapping.substring(1);
+                BufferedReader reader = null;
                 try {
-                    BufferedReader reader = new BufferedReader(new FileReader(mapping));
+                    reader = new BufferedReader(new FileReader(mapping));
                     String token = reader.readLine();
                     while (token != null) {
                         int pos = token.indexOf("=");
@@ -648,10 +653,13 @@ public class IDLToWSDLProcessor extends IDLProcessor {
                         map.put(token.substring(0, pos), token.substring(pos + 1));
                         token = reader.readLine();
                     }
-                    reader.close();
                 } catch (Exception ex) {
                     throw new RuntimeException("Incorrect properties file for mns mapping - " + mapping
                                                + ". Cause: " + ex.getMessage());
+                } finally {
+                    if (reader != null) {
+                        reader.close();
+                    }
                 }
             } else {
                 throw new RuntimeException("Option mns should have a start([) & close(]) bracket"

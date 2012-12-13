@@ -48,6 +48,7 @@ import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.ResponseBuilder;
 import javax.ws.rs.core.UriBuilder;
+import javax.ws.rs.ext.ParamConverter;
 import javax.ws.rs.ext.ReaderInterceptor;
 import javax.ws.rs.ext.WriterInterceptor;
 import javax.xml.stream.XMLStreamReader;
@@ -118,10 +119,10 @@ public abstract class AbstractClient implements Client, Retryable {
             if (values.length > 1) {
                 throw new IllegalArgumentException("Content-Type can have a single value only");
             }
-            type(values[0].toString());
+            type(convertParamValue(values[0]));
         } else {
             for (Object o : values) {
-                possiblyAddHeader(name, o.toString());
+                possiblyAddHeader(name, convertParamValue(o));
             }
         }
         return this;
@@ -611,44 +612,83 @@ public abstract class AbstractClient implements Client, Retryable {
                                  Exchange exchange, 
                                  Map<String, Object> invContext) throws Throwable;
     
-    // TODO : shall we just do the reflective invocation here ?
-    protected static void addParametersToBuilder(UriBuilder ub, String paramName, Object pValue,
-                                                 ParameterType pt) {
+    
+    protected void addMatrixQueryParamsToBuilder(UriBuilder ub, 
+                                                 String paramName, 
+                                                 ParameterType pt,
+                                                 Object... pValues) {
         if (pt != ParameterType.MATRIX && pt != ParameterType.QUERY) {
             throw new IllegalArgumentException("This method currently deal "
                                                + "with matrix and query parameters only");
         }
         if (!"".equals(paramName)) {
-            
-            if (InjectionUtils.isSupportedCollectionOrArray(pValue.getClass())) {
-                Collection<?> c = pValue.getClass().isArray() 
-                    ? Arrays.asList((Object[]) pValue) : (Collection<?>) pValue;
-                for (Iterator<?> it = c.iterator(); it.hasNext();) {
-                    addToBuilder(ub, paramName, it.next(), pt);
+            if (pValues != null && pValues.length > 0) {
+                for (Object pValue : pValues) {
+                    if (InjectionUtils.isSupportedCollectionOrArray(pValue.getClass())) {
+                        Collection<?> c = pValue.getClass().isArray() 
+                            ? Arrays.asList((Object[]) pValue) : (Collection<?>) pValue;
+                        for (Iterator<?> it = c.iterator(); it.hasNext();) {
+                            convertMatrixOrQueryToBuilder(ub, paramName, it.next(), pt);
+                        }
+                    } else { 
+                        convertMatrixOrQueryToBuilder(ub, paramName, pValue, pt); 
+                    }
                 }
-            } else { 
-                addToBuilder(ub, paramName, pValue, pt); 
+            } else {
+                addMatrixOrQueryToBuilder(ub, paramName, pt, pValues);    
             }
-                
-                    
         } else {
+            Object pValue = pValues[0];
             MultivaluedMap<String, Object> values = 
                 InjectionUtils.extractValuesFromBean(pValue, "");
             for (Map.Entry<String, List<Object>> entry : values.entrySet()) {
                 for (Object v : entry.getValue()) {
-                    addToBuilder(ub, entry.getKey(), v, pt);
+                    convertMatrixOrQueryToBuilder(ub, entry.getKey(), v, pt);
                 }
             }
         }
     }
 
-    private static void addToBuilder(UriBuilder ub, String paramName, Object pValue,
-                                     ParameterType pt) {
+    private void convertMatrixOrQueryToBuilder(UriBuilder ub, 
+                                           String paramName, 
+                                           Object pValue,
+                                           ParameterType pt) {
+        Object convertedValue = convertParamValue(pValue);
+        addMatrixOrQueryToBuilder(ub, paramName, pt, convertedValue);
+    }
+    
+    private void addMatrixOrQueryToBuilder(UriBuilder ub, 
+                                           String paramName, 
+                                           ParameterType pt,
+                                           Object... pValue) {
         if (pt == ParameterType.MATRIX) {
-            ub.matrixParam(paramName, pValue.toString());
+            ub.matrixParam(paramName, pValue);
         } else {
-            ub.queryParam(paramName, pValue.toString());
+            ub.queryParam(paramName, pValue);
         }
+    }
+    
+    
+    protected String convertParamValue(Object pValue) {
+        Class<?> pClass = pValue.getClass();
+        if (pClass == String.class || pClass.isPrimitive()) {
+            return pValue.toString();
+        }
+        
+        // A little scope for some optimization exists, particularly,
+        // it is feasible a complex object may need to be repeatedly converted
+        // so we can keep a map of ParamConverter on the bus, that said
+        // it seems an over-optimization at this stage, it's a 5% case;
+        // typical requests have a limited number of simple URI parameters
+        ProviderFactory pf = ProviderFactory.getInstance(cfg.getBus());
+        if (pf != null) {
+            @SuppressWarnings("unchecked")
+            ParamConverter<Object> prov = (ParamConverter<Object>)pf.createParameterHandler(pClass);
+            if (prov != null) {
+                return prov.toString(pValue);
+            }
+        }
+        return pValue.toString();
     }
     
     protected static void reportMessageHandlerProblem(String name, Class<?> cls, MediaType ct, 

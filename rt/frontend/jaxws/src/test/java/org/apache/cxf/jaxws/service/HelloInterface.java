@@ -33,4 +33,6 @@ public interface HelloInterface {
     String[] getStringArray(String[] strs);
     @WebMethod
     List<String> getStringList(List<String> list);
+    @WebMethod
+    String addNumbers(int arg0, int arg1) throws AddNumbersException;
 }

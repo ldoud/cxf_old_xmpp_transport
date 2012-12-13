@@ -22,17 +22,16 @@
     <artifactId>wssec_ut_policy</artifactId>
     <name>WS-Security UT Policy Demo</name>
     <description>WS-Security UT Policy Demo</description>
-    <version>2.7.1-SNAPSHOT</version>
+    <version>2.7.2-SNAPSHOT</version>
 
     <parent>
         <groupId>org.apache.cxf.samples</groupId>
         <artifactId>cxf-samples</artifactId>
-        <version>2.7.1-SNAPSHOT</version>
+        <version>2.7.2-SNAPSHOT</version>
         <relativePath>../..</relativePath>
     </parent>
 
     <build>
-        <sourceDirectory>src</sourceDirectory>
         <plugins>
             <plugin>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -53,6 +52,7 @@
                             <wsdlOptions>
                                 <wsdlOption>
                                     <wsdl>${basedir}/src/main/config/hello_world.wsdl</wsdl>
+                                    <frontEnd>jaxws21</frontEnd>
                                 </wsdlOption>
                             </wsdlOptions>
                         </configuration>

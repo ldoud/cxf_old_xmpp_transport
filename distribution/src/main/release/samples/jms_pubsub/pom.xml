@@ -22,16 +22,18 @@
     <artifactId>jms_pubsub</artifactId>
     <name>JMS Transport Publish/Subscribe Demo using Document-Literal Style</name>
     <description>JMS Transport Publish/Subscribe Demo using Document-Literal Style</description>
-    <version>2.7.1-SNAPSHOT</version>
+    <version>2.7.2-SNAPSHOT</version>
    <parent>
         <groupId>org.apache.cxf.samples</groupId>
         <artifactId>cxf-samples</artifactId>
-        <version>2.7.1-SNAPSHOT</version>
+        <version>2.7.2-SNAPSHOT</version>
     </parent>
 
     <properties>
         <cxf.version>${project.version}</cxf.version>
+        <wsdl.file>${basedir}/src/main/config/jms_greeter.wsdl</wsdl.file>
     </properties>
+
     <build>
         <plugins>
             <plugin>
@@ -44,7 +46,7 @@
             <plugin>
                 <groupId>org.apache.cxf</groupId>
                 <artifactId>cxf-codegen-plugin</artifactId>
-                <version>2.7.1-SNAPSHOT</version>
+                <version>2.7.2-SNAPSHOT</version>
                 <executions>
                     <execution>
                         <id>generate-sources</id>
@@ -52,7 +54,7 @@
                         <configuration>
                             <wsdlOptions>
                                 <wsdlOption>
-                                    <wsdl>${basedir}/wsdl/jms_greeter.wsdl</wsdl>
+                                    <wsdl>${wsdl.file}</wsdl>
                                 </wsdlOption>
                             </wsdlOptions>
                         </configuration>
@@ -82,7 +84,7 @@
                                 <configuration>
                                     <mainClass>demo.jms_greeter.server.Server</mainClass>
                                     <arguments>
-                                        <argument>${basedir}/wsdl/jms_greeter.wsdl</argument>
+                                        <argument>${wsdl.file}</argument>
                                     </arguments>
                                 </configuration>
                             </execution>
@@ -108,7 +110,7 @@
                                 <configuration>
                                     <mainClass>demo.jms_greeter.client.Client</mainClass>
                                     <arguments>
-                                        <argument>${basedir}/wsdl/jms_greeter.wsdl</argument>
+                                        <argument>${wsdl.file}</argument>
                                     </arguments>
                                 </configuration>
                             </execution>
@@ -145,23 +147,12 @@
         <dependency>
             <groupId>org.apache.cxf</groupId>
             <artifactId>cxf-rt-frontend-jaxws</artifactId>
-            <version>2.7.1-SNAPSHOT</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.cxf</groupId>
-            <artifactId>cxf-rt-transports-http</artifactId>
-            <version>2.7.1-SNAPSHOT</version>
-        </dependency>
-        <!-- Jetty is needed if you're using the CXFServlet -->
-        <dependency>
-            <groupId>org.apache.cxf</groupId>
-            <artifactId>cxf-rt-transports-http-jetty</artifactId>
-            <version>2.7.1-SNAPSHOT</version>
+            <version>2.7.2-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.apache.cxf</groupId>
             <artifactId>cxf-rt-transports-jms</artifactId>
-            <version>2.7.1-SNAPSHOT</version>
+            <version>2.7.2-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.apache.activemq</groupId>

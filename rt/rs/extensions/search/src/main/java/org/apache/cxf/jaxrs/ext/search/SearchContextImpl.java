@@ -26,6 +26,7 @@ import java.util.logging.Logger;
 import javax.ws.rs.core.MultivaluedMap;
 
 import org.apache.cxf.common.logging.LogUtils;
+import org.apache.cxf.helpers.CastUtils;
 import org.apache.cxf.jaxrs.ext.search.fiql.FiqlParser;
 import org.apache.cxf.jaxrs.utils.InjectionUtils;
 import org.apache.cxf.jaxrs.utils.JAXRSUtils;
@@ -46,15 +47,37 @@ public class SearchContextImpl implements SearchContext {
         return getCondition(null, cls);
     }
     
+    public <T> SearchCondition<T> getCondition(Class<T> cls, Map<String, String> beanProperties) {
+        return getCondition(null, cls, beanProperties);
+    }
+    
+    public <T> SearchCondition<T> getCondition(Class<T> cls, 
+                                               Map<String, String> beanProperties,
+                                               Map<String, String> parserProperties) {
+        return getCondition(null, cls, beanProperties, parserProperties);
+    }
+    
     public <T> SearchCondition<T> getCondition(String expression, Class<T> cls) {
-        
+        return getCondition(expression, cls, null);
+    }
+    
+    public <T> SearchCondition<T> getCondition(String expression, 
+                                               Class<T> cls, 
+                                               Map<String, String> beanProperties) {
+        return getCondition(expression, cls, beanProperties, null);
+    }
+    
+    public <T> SearchCondition<T> getCondition(String expression, 
+                                               Class<T> cls, 
+                                               Map<String, String> beanProperties,
+                                               Map<String, String> parserProperties) {    
         if (InjectionUtils.isPrimitive(cls)) {
             String errorMessage = "Primitive condition types are not supported"; 
             LOG.warning(errorMessage);
             throw new IllegalArgumentException(errorMessage);
         }
         
-        SearchConditionParser<T> parser = getParser(cls);
+        SearchConditionParser<T> parser = getParser(cls, beanProperties, parserProperties);
         
         String theExpression = expression == null 
             ? getSearchExpression() : expression;
@@ -87,15 +110,33 @@ public class SearchContextImpl implements SearchContext {
         }
     }
     
-    private <T> SearchConditionParser<T> getParser(Class<T> cls) {
+    private <T> SearchConditionParser<T> getParser(Class<T> cls, 
+                                                   Map<String, String> beanProperties,
+                                                   Map<String, String> parserProperties) {
         // we can use this method as a parser factory, ex
         // we can get parsers capable of parsing XQuery and other languages
         // depending on the properties set by a user
-        Map<String, String> props = new LinkedHashMap<String, String>(2);
-        props.put(SearchUtils.DATE_FORMAT_PROPERTY, 
-                  (String)message.getContextualProperty(SearchUtils.DATE_FORMAT_PROPERTY));
-        props.put(SearchUtils.TIMEZONE_SUPPORT_PROPERTY, 
-                  (String)message.getContextualProperty(SearchUtils.TIMEZONE_SUPPORT_PROPERTY));
-        return new FiqlParser<T>(cls, props); 
+        Map<String, String> props = null;
+        if (parserProperties == null) {
+            props = new LinkedHashMap<String, String>(4);
+            props.put(SearchUtils.DATE_FORMAT_PROPERTY, 
+                      (String)message.getContextualProperty(SearchUtils.DATE_FORMAT_PROPERTY));
+            props.put(SearchUtils.TIMEZONE_SUPPORT_PROPERTY, 
+                      (String)message.getContextualProperty(SearchUtils.TIMEZONE_SUPPORT_PROPERTY));
+            props.put(SearchUtils.LAX_PROPERTY_MATCH, 
+                      (String)message.getContextualProperty(SearchUtils.LAX_PROPERTY_MATCH));
+        } else {
+            props = parserProperties;
+        }
+        
+        Map<String, String> beanProps = null;
+            
+        if (beanProperties == null) {    
+            beanProps = CastUtils.cast((Map<?, ?>)message.getContextualProperty(SearchUtils.BEAN_PROPERTY_MAP));
+        } else {
+            beanProps = beanProperties;
+        }
+        
+        return new FiqlParser<T>(cls, props, beanProps); 
     }
 }

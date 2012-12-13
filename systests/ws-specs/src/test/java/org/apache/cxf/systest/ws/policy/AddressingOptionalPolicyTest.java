@@ -19,6 +19,7 @@
 
 package org.apache.cxf.systest.ws.policy;
 
+import java.io.Closeable;
 import java.util.logging.Logger;
 
 import javax.xml.ws.Endpoint;
@@ -37,6 +38,7 @@ import org.apache.cxf.systest.ws.util.ConnectionHelper;
 import org.apache.cxf.systest.ws.util.MessageFlow;
 import org.apache.cxf.testutil.common.AbstractBusClientServerTestBase;
 import org.apache.cxf.testutil.common.AbstractBusTestServerBase;
+import org.apache.cxf.testutil.common.TestUtil;
 import org.apache.cxf.testutil.recorders.InMessageRecorder;
 import org.apache.cxf.testutil.recorders.OutMessageRecorder;
 import org.apache.cxf.ws.policy.PolicyEngine;
@@ -52,13 +54,13 @@ import org.junit.Test;
  */
 public class AddressingOptionalPolicyTest extends AbstractBusClientServerTestBase {
     public static final String PORT = allocatePort(Server.class);
-    public static final String DECOUPLED = allocatePort("decoupled");
     public static final String TEMPDIR = FileUtils.getDefaultTempDir().toURI().toString(); 
 
     private static final Logger LOG = LogUtils.getLogger(AddressingOptionalPolicyTest.class);
 
     public static class Server extends AbstractBusTestServerBase {
         String tmpDir = TEMPDIR;
+        Endpoint ep;
         public Server() {
         }
         public Server(String dir) {
@@ -70,6 +72,7 @@ public class AddressingOptionalPolicyTest extends AbstractBusClientServerTestBas
             SpringBusFactory bf = new SpringBusFactory();
             Bus bus = bf.createBus("org/apache/cxf/systest/ws/policy/addr-optional.xml");
             BusFactory.setDefaultBus(bus);
+            setBus(bus);
             LoggingInInterceptor in = new LoggingInInterceptor();
             bus.getInInterceptors().add(in);
             bus.getInFaultInterceptors().add(in);
@@ -79,8 +82,12 @@ public class AddressingOptionalPolicyTest extends AbstractBusClientServerTestBas
             
             GreeterImpl implementor = new GreeterImpl();
             String address = "http://localhost:" + PORT + "/SoapContext/GreeterPort";
-            Endpoint.publish(address, implementor);
+            ep = Endpoint.publish(address, implementor);
             LOG.info("Published greeter endpoint.");            
+        }
+        public void tearDown() {
+            ep.stop();
+            ep = null;
         }
         
 
@@ -99,6 +106,7 @@ public class AddressingOptionalPolicyTest extends AbstractBusClientServerTestBas
 
     @BeforeClass
     public static void startServers() throws Exception {
+        TestUtil.getNewPortNumber("decoupled");
         PolicyTestHelper.updatePolicyRef("addr-optional-external.xml", ":9020", ":" + PORT);
         System.setProperty("temp.location", TEMPDIR);
         assertTrue("server did not launch correctly", launchServer(Server.class, null,
@@ -110,7 +118,6 @@ public class AddressingOptionalPolicyTest extends AbstractBusClientServerTestBas
     public void testUsingAddressing() throws Exception {
         SpringBusFactory bf = new SpringBusFactory();
         bus = bf.createBus("org/apache/cxf/systest/ws/policy/addr-optional.xml");
-        Bus bus = bf.createBus("org/apache/cxf/systest/ws/policy/addr-optional.xml");
         BusFactory.setDefaultBus(bus);
         InMessageRecorder in = new InMessageRecorder();
         bus.getInInterceptors().add(in);
@@ -153,6 +160,8 @@ public class AddressingOptionalPolicyTest extends AbstractBusClientServerTestBas
             mf.verifyHeader(RMUtils.getAddressingConstants().getMessageIDQName(), true, i);
             mf.verifyHeader(RMUtils.getAddressingConstants().getMessageIDQName(), false, i);
         }
+        ((Closeable)greeter).close();
+        
     }
     
     @Test
@@ -203,5 +212,6 @@ public class AddressingOptionalPolicyTest extends AbstractBusClientServerTestBas
             mf.verifyNoHeader(RMUtils.getAddressingConstants().getMessageIDQName(), true, i);
             mf.verifyNoHeader(RMUtils.getAddressingConstants().getMessageIDQName(), false, i);
         }
+        ((Closeable)greeter).close();        
     }
 }

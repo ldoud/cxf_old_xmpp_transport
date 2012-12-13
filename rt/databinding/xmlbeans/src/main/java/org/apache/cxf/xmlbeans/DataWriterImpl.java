@@ -164,9 +164,8 @@ public class DataWriterImpl implements DataWriter<XMLStreamWriter> {
                         es.printStackTrace();
                     }
                 }
-                int i = reader.getEventType();
-                if (i == XMLStreamReader.START_DOCUMENT) {
-                    i = reader.next();
+                if (reader.getEventType() == XMLStreamReader.START_DOCUMENT) {
+                    reader.next();
                 }
                 
                 if (st != null && !st.isDocumentType()
@@ -195,7 +194,7 @@ public class DataWriterImpl implements DataWriter<XMLStreamWriter> {
                 } else {
                     StaxUtils.copy(reader, output, true);
                 }
-            } else if (needToRender(obj, part)) {
+            } else if (needToRender(part)) {
                 output.writeStartElement(part.getConcreteName().getNamespaceURI(),
                                          part.getConcreteName().getLocalPart());
                 output.writeEndElement();
@@ -205,7 +204,7 @@ public class DataWriterImpl implements DataWriter<XMLStreamWriter> {
         }
     }
 
-    private boolean needToRender(Object obj, MessagePartInfo part) {
+    private boolean needToRender(MessagePartInfo part) {
         if (part != null && part.getXmlSchema() instanceof XmlSchemaElement) {
             XmlSchemaElement element = (XmlSchemaElement)part.getXmlSchema();
             return element.isNillable() && element.getMinOccurs() > 0;

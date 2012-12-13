@@ -28,25 +28,37 @@ import java.util.List;
  */
 public class OAuthContext {
 
-    private UserSubject subject;
-    private List<OAuthPermission> permissions;
+    private UserSubject resourceOwnerSubject;
+    private UserSubject clientSubject;
+    private List<OAuthPermission> tokenPermissions;
     private String tokenGrantType;
+    private String clientId;
+    private String tokenKey;
     
-    public OAuthContext(UserSubject subject, 
+    public OAuthContext(UserSubject resourceOwnerSubject,
+                        UserSubject clientSubject,
                         List<OAuthPermission> perms,
                         String tokenGrantType) {
-        this.subject = subject;
-        this.permissions = perms;
+        this.resourceOwnerSubject = resourceOwnerSubject;
+        this.clientSubject = clientSubject;
+        this.tokenPermissions = perms;
         this.tokenGrantType = tokenGrantType;
     }
    
     /**
-     * Gets the {@link UserSubject} representing the end user authorizing the client 
-     * at the authorization grant creation time 
+     * Gets the {@link UserSubject} representing the resource owner
      * @return the subject
      */
     public UserSubject getSubject() {
-        return subject;
+        return resourceOwnerSubject;
+    }
+    
+    /**
+     * Gets the {@link UserSubject} representing the client
+     * @return the subject
+     */
+    public UserSubject getClientSubject() {
+        return clientSubject;
     }
     
     /**
@@ -54,7 +66,7 @@ public class OAuthContext {
      * @return the permissions
      */
     public List<OAuthPermission> getPermissions() {
-        return Collections.unmodifiableList(permissions);
+        return Collections.unmodifiableList(tokenPermissions);
     }
 
     /**
@@ -66,5 +78,35 @@ public class OAuthContext {
         return tokenGrantType;
     }
     
-
+    /**
+      * Returns the client which obtained the access token
+      * @return the client id
+    */
+    public String getClientId() {
+        return clientId;
+    }
+    
+    /**
+     * Sets the client which obtained the access token
+     * @param clientId
+    */
+    public void setClientId(String clientId) {
+        this.clientId = clientId;
+    }
+    
+    /**
+     * Returns the access token the client is using now during the current request
+     * @return the token
+     */
+    public String getTokenKey() {
+        return tokenKey;
+    }
+    
+    /**
+     * Sets the access token the client is using now during the current request
+     * @param tokenKey
+     */
+    public void setTokenKey(String tokenKey) {
+        this.tokenKey = tokenKey;
+    }
 }

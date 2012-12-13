@@ -19,140 +19,26 @@
 
 package org.apache.cxf.systest.jaxrs;
 
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-
-import javax.ws.rs.core.Response;
-
-import org.apache.commons.httpclient.HttpClient;
-import org.apache.commons.httpclient.methods.GetMethod;
-import org.apache.cxf.helpers.IOUtils;
-import org.apache.cxf.jaxrs.client.WebClient;
 import org.apache.cxf.jaxrs.model.AbstractResourceInfo;
-import org.apache.cxf.testutil.common.AbstractBusClientServerTestBase;
 
-import org.junit.Assert;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
-import org.junit.Test;
 
 
-public class JAXRSContinuationsTest extends AbstractBusClientServerTestBase {
+public class JAXRSContinuationsTest extends AbstractJAXRSContinuationsTest {
     public static final String PORT = BookContinuationServer.PORT;
-
     @BeforeClass
     public static void startServers() throws Exception {
         AbstractResourceInfo.clearAllMaps();
         createStaticBus();
         assertTrue("server did not launch correctly",
-                   launchServer(BookContinuationServer.class, true));
+                   launchServer(BookContinuationServer.class));
+                   
+                   
     }
     
-    @Test
-    public void testDefaultTimeout() throws Exception {
-        WebClient wc = WebClient.create("http://localhost:" + PORT + "/bookstore/books/defaulttimeout");
-        WebClient.getConfig(wc).getHttpConduit().getClient().setReceiveTimeout(1000000L);
-        Response r = wc.get();
-        assertEquals(503, r.getStatus());
+    
+    protected String getPort() {
+        return PORT;
     }
     
-    @Test
-    public void testContinuation() throws Exception {
-        
-        doTestContinuation("books");
-    }
-    
-    @Test
-    public void testContinuationSubresource() throws Exception {
-        
-        doTestContinuation("books/subresources");
-    }
-    
-    @Test
-    public void testContinuationWithTimeHandler() throws Exception {
-        
-        doTestContinuation("books/timeouthandler");
-    }
-    
-    private void doTestContinuation(String pathSegment) throws Exception {
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(5, 5, 0, TimeUnit.SECONDS,
-                                                             new ArrayBlockingQueue<Runnable>(10));
-        CountDownLatch startSignal = new CountDownLatch(1);
-        CountDownLatch doneSignal = new CountDownLatch(5);
-        
-        executor.execute(new BookWorker("http://localhost:" + PORT + "/bookstore/" + pathSegment + "/1", 
-                                        "1", 
-                                        "CXF in Action1", startSignal, doneSignal));
-        executor.execute(new BookWorker("http://localhost:" + PORT + "/bookstore/" + pathSegment + "/2", 
-                                        "2", 
-                                        "CXF in Action2", startSignal, doneSignal));
-        executor.execute(new BookWorker("http://localhost:" + PORT + "/bookstore/" + pathSegment + "/3", 
-                                        "3", 
-                                        "CXF in Action3", startSignal, doneSignal));
-        executor.execute(new BookWorker("http://localhost:" + PORT + "/bookstore/" + pathSegment + "/4", 
-                                        "4", 
-                                        "CXF in Action4", startSignal, doneSignal));
-        executor.execute(new BookWorker("http://localhost:" + PORT + "/bookstore/" + pathSegment + "/5", 
-                                        "5", 
-                                        "CXF in Action5", startSignal, doneSignal));
-        
-        startSignal.countDown();
-        doneSignal.await(60, TimeUnit.SECONDS);
-        executor.shutdownNow();
-        assertEquals("Not all invocations have completed", 0, doneSignal.getCount());
-    }
-    
-    private void checkBook(String address, String id, String expected) throws Exception {
-        GetMethod get = new GetMethod(address);
-        HttpClient httpclient = new HttpClient();
-        
-        try {
-            int result = httpclient.executeMethod(get);
-            assertEquals(200, result);
-            assertEquals("Book description for id " + id + " is wrong",
-                         expected, IOUtils.toString(get.getResponseBodyAsStream()));
-        } finally {
-            // Release current connection to the connection pool once you are done
-            get.releaseConnection();
-        }
-    }
-    
-    @Ignore
-    private class BookWorker implements Runnable {
-
-        private String address;
-        private String id;
-        private String expected;
-        private CountDownLatch startSignal;
-        private CountDownLatch doneSignal;
-        public BookWorker(String address,
-                          String id,
-                          String expected,
-                           CountDownLatch startSignal,
-                           CountDownLatch doneSignal) {
-            this.address = address;
-            this.id = id;
-            this.expected = expected;
-            this.startSignal = startSignal;
-            this.doneSignal = doneSignal;
-        }
-        
-        public void run() {
-            
-            try {
-                startSignal.await();
-                checkBook(address, id, expected);
-                doneSignal.countDown();
-            } catch (InterruptedException ex) {
-                // ignore
-            } catch (Exception ex) {
-                ex.printStackTrace();
-                Assert.fail("Book thread failed for : " + id);
-            } 
-            
-        }
-        
-    }
 }

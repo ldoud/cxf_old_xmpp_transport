@@ -22,12 +22,12 @@
     <artifactId>configuration_interceptor</artifactId>
     <name>CXF Sample of Stream GZIP Interceptor</name>
     <description>CXF Sample of Stream GZIP Interceptor</description>
-    <version>2.7.1-SNAPSHOT</version>
+    <version>2.7.2-SNAPSHOT</version>
 
     <parent>
         <groupId>org.apache.cxf.samples</groupId>
         <artifactId>cxf-samples</artifactId>
-        <version>2.7.1-SNAPSHOT</version>
+        <version>2.7.2-SNAPSHOT</version>
     </parent>
     <properties>
         <cxf.version>${project.version}</cxf.version>
@@ -52,32 +52,15 @@
                         <configuration>
                             <wsdlOptions>
                                 <wsdlOption>
-                                    <wsdl>${basedir}/wsdl/hello_world.wsdl</wsdl>
+                                    <wsdl>${basedir}/src/main/resources/wsdl/hello_world.wsdl</wsdl>
+                                    <frontEnd>jaxws21</frontEnd>
+                                    <faultSerialVersionUID>1</faultSerialVersionUID>
                                 </wsdlOption>
                             </wsdlOptions>
                         </configuration>
                         <goals>
                             <goal>wsdl2java</goal>
                         </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <artifactId>maven-antrun-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>copyxmlfiles</id>
-                        <phase>generate-sources</phase>
-                        <goals>
-                            <goal>run</goal>
-                        </goals>
-                        <configuration>
-                            <tasks>
-                                <copy file="${basedir}/client.xml" todir="${basedir}/target/classes/demo/stream/client" />
-                                <copy file="${basedir}/server.xml" todir="${basedir}/target/classes/demo/stream/server" />
-                                <copy file="${basedir}/wsdl/hello_world.wsdl" todir="${basedir}/target/classes/demo/stream/client" />
-                            </tasks>
-                        </configuration>
                     </execution>
                 </executions>
             </plugin>
@@ -101,7 +84,7 @@
                                 <configuration>
                                     <executable>java</executable>
                                     <arguments>
-                                        <argument>-Dcxf.config.file=${project.build.directory}/classes/demo/stream/server/server.xml</argument>
+                                        <argument>-Dcxf.config.file=${project.build.directory}/classes/server.xml</argument>
                                         <argument>-classpath</argument>
                                         <classpath />
                                         <argument>demo.stream.server.Server</argument>
@@ -130,7 +113,7 @@
                                 <configuration>
                                     <executable>java</executable>
                                     <arguments>
-                                        <argument>-Dcxf.config.file=${project.build.directory}/classes/demo/stream/client/client.xml</argument>
+                                        <argument>-Dcxf.config.file=${project.build.directory}/classes/client.xml</argument>
                                         <argument>-classpath</argument>
                                         <classpath />
                                         <argument>demo.stream.client.Client</argument>
@@ -147,22 +130,22 @@
         <dependency>
             <groupId>org.apache.cxf</groupId>
             <artifactId>cxf-rt-frontend-jaxws</artifactId>
-            <version>2.7.1-SNAPSHOT</version>
+            <version>2.7.2-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.apache.cxf</groupId>
             <artifactId>cxf-rt-transports-http</artifactId>
-            <version>2.7.1-SNAPSHOT</version>
+            <version>2.7.2-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.apache.cxf</groupId>
             <artifactId>cxf-rt-transports-http-jetty</artifactId>
-            <version>2.7.1-SNAPSHOT</version>
+            <version>2.7.2-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.apache.cxf</groupId>
             <artifactId>cxf-rt-management</artifactId>
-            <version>2.7.1-SNAPSHOT</version>
+            <version>2.7.2-SNAPSHOT</version>
         </dependency>
     </dependencies>
 </project>

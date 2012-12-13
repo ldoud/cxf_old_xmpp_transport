@@ -21,7 +21,7 @@
     <groupId>org.apache.cxf.samples</groupId>
     <artifactId>cxf-samples</artifactId>
     <packaging>pom</packaging>
-    <version>2.7.1-SNAPSHOT</version>
+    <version>2.7.2-SNAPSHOT</version>
     <name>Apache CXF Samples</name>
     <description>Apache CXF Samples</description>
     <url>http://cxf.apache.org</url>
@@ -78,7 +78,7 @@
         <module>wsdl_first_https</module>
         <module>ws_addressing</module>
         <module>soap_header</module>
-        <module>jms-spec-demo</module>
+        <module>jms_spec_demo</module>
         <module>wsdl_first_xml_wrapped</module>
         <module>aegis</module>
         <module>jax_server_aegis_client</module>
@@ -132,7 +132,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
-                    <version>2.3.1</version>
+                    <version>2.5.1</version>
                     <configuration>
                         <source>1.6</source>
                         <target>1.6</target>
@@ -142,18 +142,6 @@
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>exec-maven-plugin</artifactId>
                     <version>1.2</version>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-antrun-plugin</artifactId>
-                    <version>1.4</version>
-                    <dependencies>
-                        <dependency>
-                            <groupId>org.apache.ant</groupId>
-                            <artifactId>ant-trax</artifactId>
-                            <version>1.8.0</version>
-                        </dependency>
-                    </dependencies>
                 </plugin>
             </plugins>
         </pluginManagement>

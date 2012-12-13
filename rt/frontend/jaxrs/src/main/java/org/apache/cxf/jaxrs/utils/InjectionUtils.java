@@ -50,6 +50,10 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.logging.Logger;
 
+import javax.ws.rs.BadRequestException;
+import javax.ws.rs.InternalServerErrorException;
+import javax.ws.rs.NotFoundException;
+import javax.ws.rs.ServerErrorException;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Application;
 import javax.ws.rs.core.HttpHeaders;
@@ -68,6 +72,7 @@ import org.apache.cxf.common.classloader.ClassLoaderUtils;
 import org.apache.cxf.common.i18n.BundleUtils;
 import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.common.util.PrimitiveUtils;
+import org.apache.cxf.common.util.ReflectionUtil;
 import org.apache.cxf.helpers.CastUtils;
 import org.apache.cxf.jaxrs.ext.MessageContext;
 import org.apache.cxf.jaxrs.ext.ProtocolHeaders;
@@ -160,19 +165,13 @@ public final class InjectionUtils {
     public static void injectFieldValue(final Field f, 
                                         final Object o, 
                                         final Object v) {
-        AccessController.doPrivileged(new PrivilegedAction<Object>() {
-            public Object run() {
-                f.setAccessible(true);
-                try {
-                    f.set(o, v);
-                } catch (IllegalAccessException ex) {
-                    reportServerError("FIELD_ACCESS_FAILURE", 
-                                      f.getType().getName());
-                }
-                return null;
-            }
-        });
-        
+        ReflectionUtil.setAccessible(f);
+        try {
+            f.set(o, v);
+        } catch (IllegalAccessException ex) {
+            reportServerError("FIELD_ACCESS_FAILURE", 
+                              f.getType().getName());
+        }
     }
 
     public static Object extractFieldValue(final Field f, 
@@ -316,9 +315,9 @@ public final class InjectionUtils {
                 //
                 if (pType == ParameterType.PATH || pType == ParameterType.QUERY
                     || pType == ParameterType.MATRIX) {
-                    throw new WebApplicationException(nfe, Response.Status.NOT_FOUND);
+                    throw new NotFoundException(nfe);
                 }
-                throw new WebApplicationException(nfe, Response.Status.BAD_REQUEST);
+                throw new BadRequestException(nfe);
             }
         }
         
@@ -348,7 +347,7 @@ public final class InjectionUtils {
                 LOG.severe(new org.apache.cxf.common.i18n.Message("CLASS_CONSTRUCTOR_FAILURE", 
                                                                    BUNDLE, 
                                                                    pClass.getName()).toString());
-                throw new WebApplicationException(ex, HttpUtils.getParameterFailureStatus(pType));
+                throw new ServerErrorException(HttpUtils.getParameterFailureStatus(pType), ex);
             }
         }
         if (result == null) {
@@ -419,7 +418,7 @@ public final class InjectionUtils {
         Response r = Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                          .type(MediaType.TEXT_PLAIN_TYPE)
                          .entity(errorMessage.toString()).build();
-        throw new WebApplicationException(r);
+        throw new InternalServerErrorException(r);
     }
     
     private static <T> T evaluateFactoryMethod(String value,
@@ -499,7 +498,8 @@ public final class InjectionUtils {
                         && m.getParameterTypes().length == 1) {
                         setter = m;
                     } else if (m.getName().equalsIgnoreCase("get" + memberKey)
-                        && m.getReturnType() != Void.TYPE) {
+                        || isBooleanType(m.getReturnType()) 
+                           && m.getName().equalsIgnoreCase("is" + memberKey)) {
                         getter = m;
                     }
                     if (setter != null && getter != null) {
@@ -996,12 +996,25 @@ public final class InjectionUtils {
         return values;
     }
     
+    private static boolean isBooleanType(Class<?> cls) {
+        return boolean.class == cls || Boolean.class == cls;
+    }
+    
     public static void fillInValuesFromBean(Object bean, String baseName, 
                                             MultivaluedMap<String, Object> values) {
         for (Method m : bean.getClass().getMethods()) {
-            if (m.getName().startsWith("get") && m.getParameterTypes().length == 0 
-                && m.getName().length() > 3) {
-                String propertyName = m.getName().substring(3);
+            String methodName = m.getName(); 
+            boolean startsFromGet = methodName.startsWith("get");
+            if ((startsFromGet 
+                || isBooleanType(m.getReturnType()) && methodName.startsWith("is")) 
+                && m.getParameterTypes().length == 0) {
+                
+                int minLen = startsFromGet ? 3 : 2; 
+                if (methodName.length() <= minLen) {
+                    continue;
+                }
+                
+                String propertyName =  methodName.substring(minLen);
                 if (propertyName.length() == 1) {
                     propertyName = propertyName.toLowerCase();
                 } else {
@@ -1047,9 +1060,17 @@ public final class InjectionUtils {
                                                                       boolean checkIgnorable) {
         Map<Parameter, Class<?>> params = new LinkedHashMap<Parameter, Class<?>>();
         for (Method m : beanClass.getMethods()) {
-            if (m.getName().startsWith("get") && m.getParameterTypes().length == 0 
-                && m.getName().length() > 3) {
-                String propertyName = m.getName().substring(3).toLowerCase();
+            String methodName = m.getName(); 
+            boolean startsFromGet = methodName.startsWith("get");
+            if ((startsFromGet 
+                || isBooleanType(m.getReturnType()) && methodName.startsWith("is")) 
+                && m.getParameterTypes().length == 0) {
+                
+                int minLen = startsFromGet ? 3 : 2; 
+                if (methodName.length() <= minLen) {
+                    continue;
+                }
+                String propertyName = methodName.substring(minLen).toLowerCase();
                 if (m.getReturnType() == Class.class
                     || checkIgnorable && canPropertyBeIgnored(m, propertyName)) {
                     continue;
@@ -1101,7 +1122,7 @@ public final class InjectionUtils {
             } catch (IllegalAccessException ex) {
                 String msg = "Method " + method.getName() + " can not be invoked"
                     + " due to IllegalAccessException";
-                throw new WebApplicationException(Response.serverError().entity(msg).build());
+                throw new InternalServerErrorException(Response.serverError().entity(msg).build());
             } 
         }
     }
@@ -1112,7 +1133,20 @@ public final class InjectionUtils {
         }
         if (cls.isPrimitive()) {
             return PrimitiveUtils.read(value, cls);
+        } else if (cls.isEnum()) {
+            try {
+                Method m  = cls.getMethod("valueOf", new Class[]{String.class});
+                return m.invoke(null, value.toUpperCase());
+            } catch (Exception ex) {
+                throw new RuntimeException(ex);
+            }
         } else {
+            try {
+                Constructor<?> c = cls.getConstructor(new Class<?>[]{String.class});
+                return c.newInstance(new Object[]{value});
+            } catch (Throwable ex) {
+                // try valueOf
+            }
             try {
                 Method m = cls.getMethod("valueOf", new Class[]{String.class});
                 return cls.cast(m.invoke(null, value));

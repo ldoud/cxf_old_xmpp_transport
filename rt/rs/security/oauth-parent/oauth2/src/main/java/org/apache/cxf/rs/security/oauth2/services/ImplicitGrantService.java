@@ -28,9 +28,11 @@ import javax.ws.rs.core.Response;
 
 import org.apache.cxf.rs.security.oauth2.common.AccessTokenRegistration;
 import org.apache.cxf.rs.security.oauth2.common.Client;
+import org.apache.cxf.rs.security.oauth2.common.OAuthPermission;
 import org.apache.cxf.rs.security.oauth2.common.ServerAccessToken;
 import org.apache.cxf.rs.security.oauth2.common.UserSubject;
 import org.apache.cxf.rs.security.oauth2.utils.OAuthConstants;
+import org.apache.cxf.rs.security.oauth2.utils.OAuthUtils;
 
 
 /**
@@ -56,7 +58,7 @@ public class ImplicitGrantService extends RedirectionBasedGrantService {
                                    UserSubject userSubject,
                                    ServerAccessToken preAuthorizedToken) {
         ServerAccessToken token = null;
-        if (preAuthorizedToken != null) {
+        if (preAuthorizedToken == null) {
             AccessTokenRegistration reg = new AccessTokenRegistration();
             reg.setClient(client);
             reg.setGrantType(OAuthConstants.IMPLICIT_GRANT);
@@ -71,19 +73,38 @@ public class ImplicitGrantService extends RedirectionBasedGrantService {
    
        // return the code by appending it as a fragment parameter to the redirect URI
         
-        StringBuilder sb = getUriWithFragment(params.getFirst(OAuthConstants.STATE), redirectUri);
+        String state = params.getFirst(OAuthConstants.STATE);
+        StringBuilder sb = getUriWithFragment(state, redirectUri);
+        if (state != null) {
+            sb.append("&");
+        }
         sb.append(OAuthConstants.ACCESS_TOKEN).append("=").append(token.getTokenKey());
-        sb.append(OAuthConstants.ACCESS_TOKEN_TYPE).append("=").append(token.getTokenType());
-        //TODO: token parameters should also be included probably
-        //      though it's not obvious the embedded client can deal with
-        //      MAC tokens or other sophisticated tokens 
+        sb.append("&")
+            .append(OAuthConstants.ACCESS_TOKEN_TYPE).append("=").append(token.getTokenType());
+        if (isWriteOptionalParameters()) {
+            sb.append("&").append(OAuthConstants.ACCESS_TOKEN_EXPIRES_IN)
+                .append("=").append(token.getExpiresIn());
+            // Reporting scope is required if the approved scope is different and
+            // optional - otherwise; lets always report it for now if it is non-empty 
+            List<OAuthPermission> perms = token.getScopes();
+            if (!perms.isEmpty()) {
+                sb.append("&").append(OAuthConstants.SCOPE)
+                    .append("=").append(OAuthUtils.convertPermissionsToScope(perms));
+            }
+            //TODO: also report other token parameters if any if needed  
+        }
+        
         return Response.seeOther(URI.create(sb.toString())).build();
     }
     
     protected Response createErrorResponse(MultivaluedMap<String, String> params,
                                            String redirectUri,
                                            String error) {
-        StringBuilder sb = getUriWithFragment(params.getFirst(OAuthConstants.STATE), redirectUri);
+        String state = params.getFirst(OAuthConstants.STATE);
+        StringBuilder sb = getUriWithFragment(state, redirectUri);
+        if (state != null) {
+            sb.append("&");
+        }
         sb.append(OAuthConstants.ERROR_KEY).append("=").append(error);
         return Response.seeOther(URI.create(sb.toString())).build();
     }

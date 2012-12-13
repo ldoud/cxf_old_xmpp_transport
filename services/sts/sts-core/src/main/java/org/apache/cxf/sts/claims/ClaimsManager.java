@@ -75,6 +75,40 @@ public class ClaimsManager {
         }
     }
 
+    public ClaimCollection retrieveClaimValues(
+        RequestClaimCollection primaryClaims,
+        RequestClaimCollection secondaryClaims,
+        ClaimsParameters parameters
+    ) {
+        if (primaryClaims == null && secondaryClaims == null) {
+            return null;
+        } else if (primaryClaims != null && secondaryClaims == null) {
+            return retrieveClaimValues(primaryClaims, parameters);
+        } else if (secondaryClaims != null && primaryClaims == null) {
+            return retrieveClaimValues(secondaryClaims, parameters);
+        }
+        
+        // Here we have two sets of claims
+        if (primaryClaims.getDialect() != null
+            && primaryClaims.getDialect().equals(secondaryClaims.getDialect())) {
+            // Matching dialects - so we must merge them
+            RequestClaimCollection mergedClaims = mergeClaims(primaryClaims, secondaryClaims);
+            return retrieveClaimValues(mergedClaims, parameters);
+        } else {
+            // If the dialects don't match then just return all Claims
+            ClaimCollection claims = retrieveClaimValues(primaryClaims, parameters);
+            ClaimCollection claims2 = retrieveClaimValues(secondaryClaims, parameters);
+            ClaimCollection returnedClaims = new ClaimCollection();
+            if (claims != null) {
+                returnedClaims.addAll(claims);
+            }
+            if (claims2 != null) {
+                returnedClaims.addAll(claims2);
+            }
+            return returnedClaims;
+        }
+    }
+    
     public ClaimCollection retrieveClaimValues(RequestClaimCollection claims, ClaimsParameters parameters) {
         Relationship relationship = null;
         if (parameters.getAdditionalProperties() != null) {
@@ -88,7 +122,12 @@ public class ClaimsManager {
             if (claimHandlers != null && claimHandlers.size() > 0 && claims != null && claims.size() > 0) {
                 ClaimCollection returnCollection = new ClaimCollection();
                 for (ClaimsHandler handler : claimHandlers) {
-                    ClaimCollection claimCollection = handler.retrieveClaimValues(claims, parameters);
+                    RequestClaimCollection supportedClaims = 
+                            filterHandlerClaims(claims, handler.getSupportedClaimTypes());
+                    if (supportedClaims.isEmpty()) {
+                        continue;
+                    }
+                    ClaimCollection claimCollection = handler.retrieveClaimValues(supportedClaims, parameters);
                     if (claimCollection != null && claimCollection.size() != 0) {
                         returnCollection.addAll(claimCollection);
                     }
@@ -128,6 +167,18 @@ public class ClaimsManager {
         return null;
     }
 
+    private RequestClaimCollection filterHandlerClaims(RequestClaimCollection claims,
+                                                         List<URI> handlerClaimTypes) {
+        RequestClaimCollection supportedClaims = new RequestClaimCollection(); 
+        supportedClaims.setDialect(claims.getDialect());
+        for (RequestClaim claim : claims) {
+            if (handlerClaimTypes.contains(claim.getClaimType())) {
+                supportedClaims.add(claim);
+            }
+        }
+        return supportedClaims;
+    }
+    
     private boolean validateClaimValues(RequestClaimCollection requestedClaims, ClaimCollection claims) {
         for (RequestClaim claim : requestedClaims) {
             URI claimType = claim.getClaimType();
@@ -235,5 +286,56 @@ public class ClaimsManager {
 
     }
 
+    /**
+     * This method merges the primary claims with the secondary claims (of the same dialect). 
+     * This facilitates handling claims from a service via wst:SecondaryParameters/wst:Claims 
+     * with any client-specific claims sent in wst:RequestSecurityToken/wst:Claims
+     */
+    private RequestClaimCollection mergeClaims(
+        RequestClaimCollection primaryClaims, RequestClaimCollection secondaryClaims
+    ) {
+        RequestClaimCollection parsedClaims = new RequestClaimCollection();
+        parsedClaims.addAll(secondaryClaims);
+        
+        // Merge claims
+        RequestClaimCollection mergedClaims = new RequestClaimCollection();
+        mergedClaims.setDialect(primaryClaims.getDialect());
+        
+        for (RequestClaim claim : primaryClaims) {
+            RequestClaim matchingClaim = null;
+            // Search for a matching claim via the ClaimType URI
+            for (RequestClaim secondaryClaim : parsedClaims) {
+                if (secondaryClaim.getClaimType().equals(claim.getClaimType())) {
+                    matchingClaim = secondaryClaim;
+                    break;
+                }
+            }
+            
+            if (matchingClaim == null) {
+                mergedClaims.add(claim);
+            } else {
+                RequestClaim mergedClaim = new RequestClaim();
+                mergedClaim.setClaimType(claim.getClaimType());
+                if (claim.getClaimValue() != null) {
+                    mergedClaim.setClaimValue(claim.getClaimValue());
+                    if (matchingClaim.getClaimValue() != null) {
+                        LOG.log(Level.WARNING, "Secondary claim value " + matchingClaim.getClaimValue()
+                                + " ignored in favour of primary claim value");
+                    }
+                } else if (matchingClaim.getClaimValue() != null) {
+                    mergedClaim.setClaimValue(matchingClaim.getClaimValue());
+                }
+                mergedClaims.add(mergedClaim);
+                
+                // Remove from parsed Claims
+                parsedClaims.remove(matchingClaim);
+            }
+        }
+        
+        // Now add in any claims from the parsed claims that weren't merged
+        mergedClaims.addAll(parsedClaims);
+        
+        return mergedClaims;
+    }
 
 }

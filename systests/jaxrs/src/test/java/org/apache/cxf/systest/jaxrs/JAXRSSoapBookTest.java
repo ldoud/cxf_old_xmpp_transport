@@ -392,7 +392,7 @@ public class JAXRSSoapBookTest extends AbstractBusClientServerTestBase {
         WebClient client = WebClient.create(baseAddress);
         client.path("/bookstore/123").accept(MediaType.APPLICATION_XML_TYPE);
         XMLSource source = client.get(XMLSource.class);
-        source.setBuffering(true);
+        source.setBuffering();
         Book b = source.getNode("/Book", Book.class);
         assertEquals(123, b.getId());
         assertEquals("CXF in Action", b.getName());
@@ -892,9 +892,10 @@ public class JAXRSSoapBookTest extends AbstractBusClientServerTestBase {
     private String getStringFromInputStream(InputStream in) throws Exception {        
         CachedOutputStream bos = new CachedOutputStream();
         IOUtils.copy(in, bos);
+        String str = new String(bos.getBytes()); 
         in.close();
         bos.close();
-        return bos.getOut().toString();        
+        return str;
     }
 
     private InputStream getHttpInputStream(String endpointAddress) throws Exception {

@@ -54,6 +54,7 @@ import org.apache.cxf.binding.soap.interceptor.AbstractSoapInterceptor;
 import org.apache.cxf.binding.soap.interceptor.ReadHeadersInterceptor;
 import org.apache.cxf.common.i18n.BundleUtils;
 import org.apache.cxf.common.injection.NoJSR250Annotations;
+import org.apache.cxf.common.util.StringUtils;
 import org.apache.cxf.databinding.DataBinding;
 import org.apache.cxf.headers.Header;
 import org.apache.cxf.headers.HeaderManager;
@@ -163,7 +164,7 @@ public class SAAJInInterceptor extends AbstractSoapInterceptor {
             return;
         }
         Boolean bodySet = (Boolean)message.get(BODY_FILLED_IN);
-        if (bodySet != null && bodySet == Boolean.TRUE) {
+        if (Boolean.TRUE.equals(bodySet)) {
             return;
         }
         message.put(BODY_FILLED_IN, Boolean.TRUE);
@@ -181,14 +182,8 @@ public class SAAJInInterceptor extends AbstractSoapInterceptor {
             }
             final SOAPPart part = soapMessage.getSOAPPart();
             Document node = (Document) message.getContent(Node.class);
-            if (node != part) {
-                if (node == null) {
-                    // replicate 2.1 behavior.
-                    part.setContent(new DOMSource(null));
-                } else {
-                    //part.setContent(new DOMSource(node));
-                    StaxUtils.copy(node, new SAAJStreamWriter(part));
-                }
+            if (node != part && node != null) {
+                StaxUtils.copy(node, new SAAJStreamWriter(part));
             }
             message.setContent(Node.class, soapMessage.getSOAPPart());
 
@@ -203,12 +198,14 @@ public class SAAJInInterceptor extends AbstractSoapInterceptor {
                         }
                     }
                     AttachmentPart ap = soapMessage.createAttachmentPart(a.getDataHandler());
-                    ap.setContentId(a.getId());
                     Iterator<String> i = a.getHeaderNames();
                     while (i != null && i.hasNext()) {
                         String h = i.next();
                         String val = a.getHeader(h);
                         ap.addMimeHeader(h, val);
+                    }
+                    if (StringUtils.isEmpty(ap.getContentId())) {
+                        ap.setContentId(a.getId());
                     }
                     soapMessage.addAttachmentPart(ap);
                 }
@@ -259,6 +256,7 @@ public class SAAJInInterceptor extends AbstractSoapInterceptor {
             if (p == null || p.getDataBinding() == null) {
                 obj = elem;
             } else {
+                dataBinding = p.getDataBinding();
                 obj = p.getDataBinding().createReader(Node.class).read(elem);
             }
             //TODO - add the interceptors

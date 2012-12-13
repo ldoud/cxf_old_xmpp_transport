@@ -96,7 +96,9 @@ public class TokenIssueOperation extends AbstractOperation implements IssueOpera
         TokenProviderParameters providerParameters = createTokenProviderParameters(requestParser, context);
 
         // Check if the requested claims can be handled by the configured claim handlers
-        RequestClaimCollection requestedClaims = providerParameters.getRequestedClaims();
+        RequestClaimCollection requestedClaims = providerParameters.getRequestedPrimaryClaims();
+        checkClaimsSupport(requestedClaims);
+        requestedClaims = providerParameters.getRequestedSecondaryClaims();
         checkClaimsSupport(requestedClaims);
         providerParameters.setClaimsManager(claimsManager);
         
@@ -114,7 +116,8 @@ public class TokenIssueOperation extends AbstractOperation implements IssueOpera
 
             if (tokenResponse == null) {
                 LOG.fine("No Token Validator has been found that can handle this token");
-
+            } else if (validateTarget.getState().equals(STATE.INVALID)) {
+                throw new STSException("Incoming token is invalid", STSException.REQUEST_FAILED);
             } else if (validateTarget.getState().equals(STATE.VALID)) {
                 processValidToken(providerParameters, validateTarget, tokenResponse); 
             } else {

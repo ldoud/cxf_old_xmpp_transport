@@ -27,6 +27,7 @@ import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.javascript.JavascriptTestUtilities.JSRunnable;
 import org.apache.cxf.javascript.JavascriptTestUtilities.Notifier;
 import org.apache.cxf.javascript.fortest.AnyImpl;
+import org.apache.cxf.testutil.common.TestUtil;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -55,6 +56,7 @@ public class AnyTest extends JavascriptRhinoTest {
     
     @Override
     protected String[] getConfigLocations() {
+        TestUtil.getNewPortNumber("TestPort");
         return new String[] {"classpath:AnyBeans.xml"};
     }
     
@@ -62,7 +64,7 @@ public class AnyTest extends JavascriptRhinoTest {
     public void before() throws Exception {
         setupRhino("any-service-endpoint", 
                    "/org/apache/cxf/javascript/AnyTests.js",
-                   true);
+                   Boolean.TRUE);
         implementor = (AnyImpl)rawImplementor;
         implementor.reset();
     }

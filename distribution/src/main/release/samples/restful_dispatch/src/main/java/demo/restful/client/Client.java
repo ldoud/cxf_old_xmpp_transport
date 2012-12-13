@@ -21,7 +21,6 @@ package demo.restful.client;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.net.URI;
 import java.net.URL;
 import java.util.Map;
 import java.util.Properties;
@@ -69,13 +68,6 @@ public final class Client {
         source = new StreamSource(in);
         printSource(source);
 
-        // Sent HTTP POST request to update customer info using JAX-WS Dispatch
-        URI endpointURI = new URI(endpointAddress.toString());
-        String path = null;
-        if (endpointURI != null) {
-            path = endpointURI.getPath();
-        }
-
         Service service = Service.create(serviceName);
         service.addPort(portName, HTTPBinding.HTTP_BINDING,  endpointAddress);
         Dispatch<DOMSource> dispatcher = service.createDispatch(portName,
@@ -83,7 +75,7 @@ public final class Client {
         Map<String, Object> requestContext = dispatcher.getRequestContext();
 
         Client client = new Client();
-        InputStream is = client.getClass().getResourceAsStream("CustomerJohnReq.xml");
+        InputStream is = client.getClass().getResourceAsStream("/CustomerJohnReq.xml");
         Document doc = XMLUtils.parse(is);
         DOMSource reqMsg = new DOMSource(doc);
 

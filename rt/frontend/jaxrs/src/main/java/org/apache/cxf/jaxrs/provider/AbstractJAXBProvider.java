@@ -28,6 +28,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -37,6 +38,8 @@ import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.logging.Logger;
 
+import javax.ws.rs.BadRequestException;
+import javax.ws.rs.InternalServerErrorException;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedMap;
@@ -124,6 +127,8 @@ public abstract class AbstractJAXBProvider<T> extends AbstractConfigurableProvid
     
     private boolean skipJaxbChecks;
     private boolean singleJaxbContext;
+    private boolean useSingleContextForPackages;
+    
     private Class<?>[] extraClass;
     
     private boolean validateOutput;
@@ -156,6 +161,10 @@ public abstract class AbstractJAXBProvider<T> extends AbstractConfigurableProvid
         singleJaxbContext = useSingleContext;
     }
     
+    public void setUseSingleContextForPackages(boolean use) {
+        useSingleContextForPackages = use;
+    }
+    
     public void setExtraClass(Class<?>[] userExtraClass) {
         extraClass = userExtraClass;
     }
@@ -163,14 +172,24 @@ public abstract class AbstractJAXBProvider<T> extends AbstractConfigurableProvid
     @Override
     public void init(List<ClassResourceInfo> cris) {
         if (singleJaxbContext) {
-            Set<Class<?>> allTypes = 
-                new HashSet<Class<?>>(ResourceUtils.getAllRequestResponseTypes(cris, true)
+            JAXBContext context = null;
+            Set<Class<?>> allTypes = null;
+            if (cris != null) {    
+                allTypes = new HashSet<Class<?>>(ResourceUtils.getAllRequestResponseTypes(cris, true)
                     .getAllTypes().keySet());
-            JAXBContext context = 
-                ResourceUtils.createJaxbContext(allTypes, extraClass, cProperties);
+                context = ResourceUtils.createJaxbContext(allTypes, extraClass, cProperties);
+            } else if (extraClass != null) {
+                allTypes = new HashSet<Class<?>>(Arrays.asList(extraClass));
+                context = ResourceUtils.createJaxbContext(allTypes, null, cProperties);
+            }
+            
             if (context != null) {
                 for (Class<?> cls : allTypes) {
-                    classContexts.put(cls, context);
+                    if (useSingleContextForPackages) {
+                        packageContexts.put(PackageUtils.getPackageName(cls), context);
+                    } else {
+                        classContexts.put(cls, context);
+                    }
                 }
             }
         }
@@ -200,14 +219,10 @@ public abstract class AbstractJAXBProvider<T> extends AbstractConfigurableProvid
         jaxbElementClassMap = map;
     }
     
-    protected boolean isPayloadEmpty() {
-        return mc != null ? isPayloadEmpty(mc.getHttpHeaders()) : false;     
-    }
-    
     protected void reportEmptyContentLength() {
         String message = new org.apache.cxf.common.i18n.Message("EMPTY_BODY", BUNDLE).toString();
         LOG.warning(message);
-        throw new WebApplicationException(400);
+        throw new BadRequestException();
     }
     
     protected <X> X getStreamHandlerFromCurrentMessage(Class<X> staxCls) {
@@ -475,8 +490,21 @@ public abstract class AbstractJAXBProvider<T> extends AbstractConfigurableProvid
             JAXBContext context = packageContexts.get(packageName);
             if (context == null) {
                 try {
-                    if (type.getClassLoader() != null && objectFactoryOrIndexAvailable(type)) { 
-                        context = JAXBContext.newInstance(packageName, type.getClassLoader(), cProperties);
+                    if (type.getClassLoader() != null && objectFactoryOrIndexAvailable(type)) {
+                        
+                        String contextName = packageName;
+                        if (extraClass != null) {
+                            StringBuilder sb = new StringBuilder(contextName);
+                            for (Class<?> extra : extraClass) {
+                                String extraPackage = PackageUtils.getPackageName(extra);
+                                if (!extraPackage.equals(packageName)) {
+                                    sb.append(":").append(extraPackage);
+                                }
+                            }
+                            contextName = sb.toString();
+                        }
+                        
+                        context = JAXBContext.newInstance(contextName, type.getClassLoader(), cProperties);
                         packageContexts.put(packageName, context);
                     }
                 } catch (JAXBException ex) {
@@ -637,7 +665,7 @@ public abstract class AbstractJAXBProvider<T> extends AbstractConfigurableProvid
             ? Response.Status.BAD_REQUEST : Response.Status.INTERNAL_SERVER_ERROR; 
         Response r = Response.status(status)
             .type(MediaType.TEXT_PLAIN).entity(message).build();
-        throw new WebApplicationException(t, r);
+        throw read ? new BadRequestException(r, t) : new InternalServerErrorException(r, t);
     }
     
     protected static void handleJAXBException(JAXBException e, boolean read) {
@@ -740,7 +768,7 @@ public abstract class AbstractJAXBProvider<T> extends AbstractConfigurableProvid
                         ? Integer.valueOf(innerElementCountStr) : -1;
                     return new DocumentDepthProperties(totalElementCount, elementLevel, innerElementCount);
                 } catch (Exception ex) {
-                    throw new WebApplicationException(ex);
+                    throw new InternalServerErrorException(ex);
                 }
             }
         }

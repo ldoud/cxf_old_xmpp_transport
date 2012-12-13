@@ -43,7 +43,7 @@ import org.apache.cxf.jaxrs.utils.HttpUtils;
 import org.apache.cxf.message.Message;
 import org.apache.cxf.phase.PhaseInterceptorChain;
 
-public final class ResponseBuilderImpl extends ResponseBuilder {
+public final class ResponseBuilderImpl extends ResponseBuilder implements Cloneable {
     private int status = 200;
     private Object entity;
     private MultivaluedMap<String, Object> metadata = new MetadataMap<String, Object>();
@@ -199,9 +199,9 @@ public final class ResponseBuilderImpl extends ResponseBuilder {
         List<Object> varyValues = metadata.get(HttpHeaders.VARY);
         for (String v : values) {
             if (v == null) {
-                metadata.remove(v);
+                metadata.remove(null);
                 if (varyValues != null) {
-                    varyValues.remove(v);
+                    varyValues.remove(null);
                 }
             } else {
                 addHeader(HttpHeaders.VARY, v);

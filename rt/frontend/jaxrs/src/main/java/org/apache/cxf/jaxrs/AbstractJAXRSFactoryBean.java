@@ -26,10 +26,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.ResourceBundle;
+import java.util.Set;
 import java.util.logging.Logger;
 
-import javax.ws.rs.WebApplicationException;
-import javax.ws.rs.core.Response;
+import javax.ws.rs.NotFoundException;
 import javax.xml.namespace.QName;
 
 import org.apache.cxf.Bus;
@@ -46,7 +46,11 @@ import org.apache.cxf.endpoint.AbstractEndpointFactory;
 import org.apache.cxf.endpoint.Endpoint;
 import org.apache.cxf.endpoint.EndpointException;
 import org.apache.cxf.endpoint.EndpointImpl;
+import org.apache.cxf.jaxrs.model.BeanParamInfo;
 import org.apache.cxf.jaxrs.model.ClassResourceInfo;
+import org.apache.cxf.jaxrs.model.OperationResourceInfo;
+import org.apache.cxf.jaxrs.model.Parameter;
+import org.apache.cxf.jaxrs.model.ParameterType;
 import org.apache.cxf.jaxrs.model.UserResource;
 import org.apache.cxf.jaxrs.provider.DataBindingProvider;
 import org.apache.cxf.jaxrs.provider.ProviderFactory;
@@ -217,7 +221,7 @@ public class AbstractJAXRSFactoryBean extends AbstractEndpointFactory {
         }
 
         EndpointInfo ei = createEndpointInfo();
-        Endpoint ep = new EndpointImpl(getBus(), getServiceFactory().getService(), ei);
+        Endpoint ep = new EndpointImpl(getBus(), service, ei);
         
         if (properties != null) {
             ep.putAll(properties);
@@ -312,12 +316,12 @@ public class AbstractJAXRSFactoryBean extends AbstractEndpointFactory {
                 new org.apache.cxf.common.i18n.Message("NO_RESOURCES_AVAILABLE", 
                                                        BUNDLE);
             LOG.severe(msg.toString());
-            throw new WebApplicationException(Response.Status.NOT_FOUND);
+            throw new NotFoundException();
         }
     }
     
     protected ProviderFactory setupFactory(Endpoint ep) { 
-        ProviderFactory factory = ProviderFactory.getInstance(getBus()); 
+        ProviderFactory factory = ProviderFactory.createInstance(getBus()); 
         if (entityProviders != null) {
             factory.setUserProviders(entityProviders); 
         }
@@ -328,10 +332,32 @@ public class AbstractJAXRSFactoryBean extends AbstractEndpointFactory {
         if (schemaLocations != null) {
             factory.setSchemaLocations(schemaLocations);
         }
+        
+        setBeanInfo(factory);
+        
         ep.put(ProviderFactory.class.getName(), factory);
+        getBus().setProperty(ProviderFactory.class.getName(), factory);
         return factory;
     }
 
+    protected void setBeanInfo(ProviderFactory factory) {
+        List<ClassResourceInfo> cris = serviceFactory.getClassResourceInfo();
+        for (ClassResourceInfo cri : cris) {
+            Set<OperationResourceInfo> oris = cri.getMethodDispatcher().getOperationResourceInfos();
+            for (OperationResourceInfo ori : oris) {
+                List<Parameter> params = ori.getParameters();
+                for (Parameter param : params) {
+                    if (param.getType() == ParameterType.BEAN) {
+                        Class<?> cls = ori.getMethodToInvoke().getParameterTypes()[param.getIndex()];
+                        BeanParamInfo bpi = new BeanParamInfo(cls, getBus());
+                        factory.addBeanParamInfo(bpi);
+                    }
+                }
+            }
+        }
+        
+    }
+    
     protected void setDataBindingProvider(ProviderFactory factory, Service s) {
         
         List<ClassResourceInfo> cris = serviceFactory.getRealClassResourceInfo();

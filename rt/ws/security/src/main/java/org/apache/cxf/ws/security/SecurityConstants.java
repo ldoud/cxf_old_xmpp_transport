@@ -25,7 +25,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Configuration tags used to configure the WS-SecurityPolicy layer.
+ * Configuration tags used to configure the WS-SecurityPolicy layer. Some of them are also 
+ * used by the non WS-SecurityPolicy approach in the WSS4J(Out|In)Interceptors.
  */
 public final class SecurityConstants {
     
@@ -173,6 +174,13 @@ public final class SecurityConstants {
      * Set it to true to cache for both cases. Set this to "false" to not cache Timestamp Created Strings.
      */
     public static final String ENABLE_TIMESTAMP_CACHE = "ws-security.enable.timestamp.cache";
+    
+    /**
+     * Whether to validate the SubjectConfirmation requirements of a received SAML Token
+     * (sender-vouches or holder-of-key). The default is true.
+     */
+    public static final String VALIDATE_SAML_SUBJECT_CONFIRMATION = 
+        "ws-security.validate.saml.subject.conf";
     
     //
     // Non-boolean WS-Security Configuration parameters
@@ -343,6 +351,12 @@ public final class SecurityConstants {
     public static final String DISABLE_STS_CLIENT_WSMEX_CALL_USING_EPR_ADDRESS =
         "ws-security.sts.disable-wsmex-call-using-epr-address";
     
+    /**
+     * Switch STS client to send Soap 1.2 messages
+     */
+    public static final String STS_CLIENT_SOAP12_BINDING =
+        "ws-security.sts.client-soap12-binding";
+
     /**
      * 
      * A Crypto object to be used for the STS. If this is not defined then the 

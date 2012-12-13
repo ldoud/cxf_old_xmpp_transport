@@ -103,7 +103,6 @@ public class ClientImpl
 
     protected Executor executor;
 
-
     public ClientImpl(Bus b, Endpoint e) {
         this(b, e, (ConduitSelector)null);
     }
@@ -173,7 +172,7 @@ public class ClientImpl
     /**
      * Create a Client that uses a specific EndpointImpl.
      * @param bus
-     * @param service
+     * @param svc
      * @param port
      * @param endpointImplFactory
      */

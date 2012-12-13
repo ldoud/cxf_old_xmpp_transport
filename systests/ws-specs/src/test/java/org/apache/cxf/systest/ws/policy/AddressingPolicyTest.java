@@ -19,6 +19,7 @@
 
 package org.apache.cxf.systest.ws.policy;
 
+import java.io.Closeable;
 import java.util.logging.Logger;
 
 import javax.xml.ws.Endpoint;
@@ -36,6 +37,8 @@ import org.apache.cxf.interceptor.LoggingOutInterceptor;
 import org.apache.cxf.systest.ws.util.ConnectionHelper;
 import org.apache.cxf.testutil.common.AbstractBusClientServerTestBase;
 import org.apache.cxf.testutil.common.AbstractBusTestServerBase;
+import org.apache.cxf.testutil.common.TestUtil;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -47,12 +50,12 @@ import org.junit.Test;
 public class AddressingPolicyTest extends AbstractBusClientServerTestBase {
     public static final String PORT = allocatePort(Server.class);
     public static final String TEMPDIR = FileUtils.getDefaultTempDir().toURI().toString(); 
-    public static final String DECOUPLED = allocatePort("decoupled");
 
     private static final Logger LOG = LogUtils.getLogger(AddressingPolicyTest.class);
 
     public static class Server extends AbstractBusTestServerBase {
         String tmpDir = TEMPDIR;
+        Endpoint ep;
         public Server() {
         }
         public Server(String dir) {
@@ -67,6 +70,7 @@ public class AddressingPolicyTest extends AbstractBusClientServerTestBase {
             SpringBusFactory bf = new SpringBusFactory();
             Bus bus = bf.createBus("org/apache/cxf/systest/ws/policy/addr.xml");
             BusFactory.setDefaultBus(bus);
+            setBus(bus);
             LoggingInInterceptor in = new LoggingInInterceptor();
             bus.getInInterceptors().add(in);
             bus.getInFaultInterceptors().add(in);
@@ -76,8 +80,12 @@ public class AddressingPolicyTest extends AbstractBusClientServerTestBase {
             
             GreeterImpl implementor = new GreeterImpl();
             String address = "http://localhost:" + PORT + "/SoapContext/GreeterPort";
-            Endpoint.publish(address, implementor);
+            ep = Endpoint.publish(address, implementor);
             LOG.info("Published greeter endpoint.");            
+        }
+        public void tearDown() {
+            ep.stop();
+            ep = null;
         }
         
 
@@ -96,6 +104,7 @@ public class AddressingPolicyTest extends AbstractBusClientServerTestBase {
 
     @BeforeClass
     public static void startServers() throws Exception {
+        TestUtil.getNewPortNumber("decoupled");
         PolicyTestHelper.updatePolicyRef("addr-external.xml", ":9020", ":" + PORT);
         System.setProperty("temp.location", TEMPDIR);
 
@@ -144,5 +153,7 @@ public class AddressingPolicyTest extends AbstractBusClientServerTestBase {
             assertEquals(2, ex.getFaultInfo().getMajor());
             assertEquals(1, ex.getFaultInfo().getMinor());
         } 
+        ((Closeable)greeter).close();
+
     }
 }

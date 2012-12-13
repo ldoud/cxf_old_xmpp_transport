@@ -46,7 +46,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
-import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.BadRequestException;
+import javax.ws.rs.InternalServerErrorException;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedMap;
@@ -266,7 +267,7 @@ public class WadlGenerator implements RequestHandler {
         try {
             return DOMUtils.readXml(new StringReader(entity));
         }  catch (Exception ex) {
-            throw new WebApplicationException(ex, 500);
+            throw new InternalServerErrorException(ex);
         }
     }
     
@@ -874,7 +875,7 @@ public class WadlGenerator implements RequestHandler {
                         
                     }
                 } catch (Exception ex) {
-                    throw new WebApplicationException(ex, 500);
+                    throw new InternalServerErrorException(ex);
                 }
             }
         }
@@ -898,7 +899,7 @@ public class WadlGenerator implements RequestHandler {
                         new DOMSource(docEl)).build();
                 }
             } catch (Exception ex) {
-                throw new WebApplicationException(ex, 400);
+                throw new BadRequestException();
             }
             
         }
@@ -1312,7 +1313,7 @@ public class WadlGenerator implements RequestHandler {
         }
         ByteArrayInputStream bis = IOUtils.loadIntoBAIS(is);
         XMLSource source = new XMLSource(bis);
-        source.setBuffering(true);
+        source.setBuffering();
         String targetNs = source.getValue("/*/@targetNamespace");
 
         Map<String, String> nsMap =
@@ -1396,7 +1397,7 @@ public class WadlGenerator implements RequestHandler {
             // we'll need to do the proper schema caching eventually
             for (String s : schemas) {
                 XMLSource source = new XMLSource(new ByteArrayInputStream(s.getBytes()));
-                source.setBuffering(true);
+                source.setBuffering();
                 Map<String, String> locs = getLocationsMap(source, "import", links, ui);
                 locs.putAll(getLocationsMap(source, "include", links, ui));
                 String actualSchema = !locs.isEmpty() ? transformSchema(s, locs) : s;
@@ -1433,7 +1434,7 @@ public class WadlGenerator implements RequestHandler {
                         }
                         if (!locs.containsKey(loc)) {
                             locs.put(loc, ui.getBaseUriBuilder().path(
-                                 loc.toString()).build().toString());
+                                 loc).build().toString());
                         }
                     }
                 } catch (Exception ex) {

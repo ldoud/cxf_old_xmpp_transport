@@ -25,6 +25,7 @@ import java.util.Collection;
 import javax.xml.namespace.QName;
 
 import org.apache.cxf.common.injection.NoJSR250Annotations;
+import org.apache.cxf.common.util.ReflectionUtil;
 import org.apache.cxf.helpers.CastUtils;
 import org.springframework.beans.Mergeable;
 import org.springframework.beans.PropertyValue;
@@ -83,8 +84,9 @@ public class SpringBeanQNameMap<V>
                 if (ids == null && staticFieldName != null) {
                     Class<?> cls = context.getType(beanNames[i]);
                     try {
-                        Field f = cls.getDeclaredField(staticFieldName);
-                        f.setAccessible(true);
+                        final Field f = cls.getDeclaredField(staticFieldName);
+                        ReflectionUtil.setAccessible(f);
+
                         Collection<QName> sids = CastUtils.cast((Collection<?>)f.get(null));
                         if (sids != null) {
                             ids = new ArrayList<QName>(sids);

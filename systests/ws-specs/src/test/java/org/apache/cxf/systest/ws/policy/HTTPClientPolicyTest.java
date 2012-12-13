@@ -19,6 +19,7 @@
 
 package org.apache.cxf.systest.ws.policy;
 
+import java.io.Closeable;
 import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.util.logging.Logger;
@@ -67,11 +68,11 @@ public class HTTPClientPolicyTest extends AbstractBusClientServerTestBase {
         new QName("http://cxf.apache.org/greeter_control", "BasicGreeterService");
     
     public static class Server extends AbstractBusTestServerBase {
-   
+        Endpoint ep;
         protected void run()  {            
             SpringBusFactory bf = new SpringBusFactory();
             Bus bus = bf.createBus();
-            
+            setBus(bus);
             BusFactory.setDefaultBus(bus);
             LoggingInInterceptor in = new LoggingInInterceptor();
             LoggingOutInterceptor out = new LoggingOutInterceptor();           
@@ -82,10 +83,13 @@ public class HTTPClientPolicyTest extends AbstractBusClientServerTestBase {
             HttpGreeterImpl implementor = new HttpGreeterImpl();
             implementor.setThrowAlways(true);
             String address = "http://localhost:" + PORT + "/SoapContext/GreeterPort";
-            Endpoint.publish(address, implementor);
+            ep = Endpoint.publish(address, implementor);
             LOG.info("Published greeter endpoint.");            
         }
-        
+        public void tearDown() {
+            ep.stop();
+            ep = null;
+        }
 
         public static void main(String[] args) {
             try { 
@@ -164,6 +168,7 @@ public class HTTPClientPolicyTest extends AbstractBusClientServerTestBase {
             assertEquals(2, ex.getFaultInfo().getMajor());
             assertEquals(1, ex.getFaultInfo().getMinor());
         } 
+        ((Closeable)greeter).close();
 
     }
     
@@ -195,5 +200,7 @@ public class HTTPClientPolicyTest extends AbstractBusClientServerTestBase {
         assertEquals("unexpected DecoupledEndpoint", 
                      "http://localhost:9909/decoupled_endpoint",
                      c.getClient().getDecoupledEndpoint());
+        ((Closeable)greeter).close();
+
     }
 }

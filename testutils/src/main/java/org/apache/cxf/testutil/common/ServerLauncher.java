@@ -93,9 +93,9 @@ public class ServerLauncher {
 
     private boolean waitForServerToStop() {
         synchronized (mutex) {
+            TimeoutCounter tc = new TimeoutCounter(DEFAULT_TIMEOUT);
             while (!serverIsStopped) {
                 try {
-                    TimeoutCounter tc = new TimeoutCounter(DEFAULT_TIMEOUT);
                     mutex.wait(1000);
                     if (tc.isTimeoutExpired()) {
                         System.out.println("destroying server process");
@@ -108,7 +108,7 @@ public class ServerLauncher {
             }
             if (!inProcess) {
                 //wait for process to end...
-                TimeoutCounter tc = new TimeoutCounter(DEFAULT_TIMEOUT);
+                tc = new TimeoutCounter(DEFAULT_TIMEOUT);
                 while (!tc.isTimeoutExpired()) {
                     try {
                         process.exitValue();
@@ -116,7 +116,7 @@ public class ServerLauncher {
                     } catch (IllegalThreadStateException ex) {
                         //ignore, process hasn't ended
                         try {
-                            Thread.sleep(1000);
+                            mutex.wait(1000);
                         } catch (InterruptedException ex1) {
                             //ignore
                         }
@@ -230,8 +230,8 @@ public class ServerLauncher {
             OutputMonitorThread out = launchOutputMonitorThread(process.getInputStream(), System.out);
     
             synchronized (mutex) {
-                do {
-                    TimeoutCounter tc = new TimeoutCounter(DEFAULT_TIMEOUT);
+                TimeoutCounter tc = new TimeoutCounter(DEFAULT_TIMEOUT);
+                while (!(serverIsReady || serverLaunchFailed)) {
                     try {
                         mutex.wait(1000);
                         if (tc.isTimeoutExpired()) {
@@ -240,7 +240,7 @@ public class ServerLauncher {
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
-                } while (!serverIsReady && !serverLaunchFailed);
+                }
             }
             if (serverLaunchFailed || !serverIsReady) {
                 System.err.println(out.getServerOutput());
@@ -281,6 +281,7 @@ public class ServerLauncher {
         }
 
         public void run() {
+            PrintStream ps = null;
             try {
                 String outputDir = System.getProperty("server.output.dir", "target/surefire-reports/");
                 FileOutputStream fos;
@@ -298,7 +299,7 @@ public class ServerLauncher {
                     file.mkdirs();
                     fos = new FileOutputStream(outputDir + className + ".out");
                 }
-                PrintStream ps = new PrintStream(fos);
+                ps = new PrintStream(fos);
                 boolean running = true;
                 StringBuilder serverOutput = new StringBuilder();
                 for (int ch = in.read(); ch != -1; ch = in.read()) {
@@ -327,10 +328,13 @@ public class ServerLauncher {
                         }
                     }
                 }
-                ps.close();
             } catch (IOException ex) {
                 if (!ex.getMessage().contains("Stream closed")) {
                     ex.printStackTrace();
+                }
+            } finally {
+                if (ps != null) {
+                    ps.close();
                 }
             }
         }
@@ -371,9 +375,6 @@ public class ServerLauncher {
         }
         for (Map.Entry<Object, Object> entry : TestUtil.getAllPorts().entrySet()) {
             cmd.add("-D" + entry.getKey() + "=" + entry.getValue());
-        }
-        if (Boolean.getBoolean("java.awt.headless")) {
-            cmd.add("-Djava.awt.headless=true");
         }
         String vmargs = System.getProperty("server.launcher.vmargs");
         if (StringUtils.isEmpty(vmargs)) {

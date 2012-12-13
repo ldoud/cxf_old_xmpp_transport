@@ -19,7 +19,13 @@
 
 package org.apache.cxf.jaxrs.client;
 
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Type;
 import java.net.URI;
+import java.util.Collections;
+
+import javax.ws.rs.ext.ParamConverter;
+import javax.ws.rs.ext.ParamConverterProvider;
 
 import org.apache.cxf.jaxrs.resources.BookInterface;
 import org.apache.cxf.jaxrs.resources.BookStore;
@@ -88,6 +94,13 @@ public class WebClientTest extends Assert {
         wc.to("http://bar", false);
         assertEquals(URI.create("http://bar"), wc.getBaseURI());
         assertEquals(URI.create("http://bar"), wc.getCurrentURI());
+    }
+    
+    @Test 
+    public void testEmptyQuery() {
+        WebClient wc = WebClient.create("http://foo");
+        wc.query("_wadl");
+        assertEquals("http://foo?_wadl", wc.getCurrentURI().toString());
     }
     
     @Test 
@@ -248,6 +261,16 @@ public class WebClientTest extends Assert {
     }
     
     @Test
+    public void testWebClientParamConverter() {
+        WebClient wc = WebClient.create("http://foo",
+                                        Collections.singletonList(new ParamConverterProviderImpl()));
+        wc.path(new ComplexObject());
+        wc.query("param", new ComplexObject(), new ComplexObject());
+        assertEquals("http://foo/complex?param=complex&param=complex", wc.getCurrentURI().toString());
+        
+    }
+    
+    @Test
     public void testProxyConfiguration() {
         // interface
         BookInterface proxy = JAXRSClientFactory.create("http://foo", BookInterface.class);
@@ -257,4 +280,31 @@ public class WebClientTest extends Assert {
         assertNotNull(WebClient.getConfig(proxy2) != null);
     }
     
+    private static class ParamConverterProviderImpl implements ParamConverterProvider {
+        
+        @SuppressWarnings("unchecked")
+        @Override
+        public <T> ParamConverter<T> getConverter(Class<T> rawType, Type genericType, Annotation[] annotations) {
+            return (ParamConverter<T>)new ParamConverterImpl();
+        }
+        
+    }
+    
+    private static class ParamConverterImpl implements ParamConverter<ComplexObject> {
+
+        @Override
+        public ComplexObject fromString(String value) throws IllegalArgumentException {
+            // TODO Auto-generated method stub
+            return null;
+        }
+
+        @Override
+        public String toString(ComplexObject value) throws IllegalArgumentException {
+            return "complex";
+        }
+    }
+    
+    private static class ComplexObject {
+        
+    }
 }

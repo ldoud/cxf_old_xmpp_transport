@@ -38,13 +38,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import javax.ws.rs.BadRequestException;
 import javax.ws.rs.Consumes;
+import javax.ws.rs.InternalServerErrorException;
 import javax.ws.rs.Produces;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedMap;
-import javax.ws.rs.core.Response;
 import javax.ws.rs.ext.Provider;
 import javax.xml.bind.JAXBElement;
 import javax.xml.bind.JAXBException;
@@ -194,7 +195,7 @@ public class JSONProvider<T> extends AbstractJAXBProvider<T>  {
         MultivaluedMap<String, String> headers, InputStream is) 
         throws IOException {
         
-        if (isPayloadEmpty()) {
+        if (isPayloadEmpty(headers)) {
             if (AnnotationUtils.getAnnotation(anns, Nullable.class) != null) {
                 return null;
             } else {
@@ -202,11 +203,13 @@ public class JSONProvider<T> extends AbstractJAXBProvider<T>  {
             }
         }
         
+        XMLStreamReader reader = null;
         try {
             InputStream realStream = getInputStream(type, genericType, is);
             if (Document.class.isAssignableFrom(type)) {
                 W3CDOMStreamWriter writer = new W3CDOMStreamWriter();
-                copyReaderToWriter(createReader(type, realStream, false), writer);
+                reader = createReader(type, realStream, false);
+                copyReaderToWriter(reader, writer);
                 return type.cast(writer.getDocument());
             }
             boolean isCollection = InjectionUtils.isSupportedCollectionOrArray(type);
@@ -246,7 +249,9 @@ public class JSONProvider<T> extends AbstractJAXBProvider<T>  {
         } catch (WebApplicationException e) {
             throw e;
         } catch (Exception e) {
-            throw new WebApplicationException(e, Response.status(400).build());
+            throw new BadRequestException(e);
+        } finally {
+            StaxUtils.close(reader);
         }
         // unreachable
         return null;
@@ -316,7 +321,7 @@ public class JSONProvider<T> extends AbstractJAXBProvider<T>  {
         }
         
         if (name == null) {
-            throw new WebApplicationException(500);
+            throw new InternalServerErrorException();
         }
         
         return "{\"" + name + "\":";
@@ -340,11 +345,12 @@ public class JSONProvider<T> extends AbstractJAXBProvider<T>  {
             }
             throw new IOException(sb.toString());
         }
+        XMLStreamWriter writer = null;
         try {
             
             String enc = HttpUtils.getSetEncoding(m, headers, "UTF-8");
             if (Document.class.isAssignableFrom(cls)) {
-                XMLStreamWriter writer = createWriter(obj, cls, genericType, enc, os, false);
+                writer = createWriter(obj, cls, genericType, enc, os, false);
                 copyReaderToWriter(StaxUtils.createXMLStreamReader((Document)obj), writer);
                 return;
             }
@@ -366,7 +372,9 @@ public class JSONProvider<T> extends AbstractJAXBProvider<T>  {
         } catch (XMLStreamException e) {
             handleXMLStreamException(e, false);
         } catch (Exception e) {
-            throw new WebApplicationException(e);
+            throw new InternalServerErrorException(e);
+        } finally {
+            StaxUtils.close(writer);
         }
     }
 

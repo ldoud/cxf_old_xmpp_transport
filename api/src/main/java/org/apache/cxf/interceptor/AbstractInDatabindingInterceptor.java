@@ -91,7 +91,7 @@ public abstract class AbstractInDatabindingInterceptor extends AbstractPhaseInte
         dataReader.setAttachments(message.getAttachments());
         dataReader.setProperty(DataReader.ENDPOINT, message.getExchange().getEndpoint());
         dataReader.setProperty(Message.class.getName(), message);
-        setSchemaInMessage(service, message, dataReader);   
+        setDataReaderValidation(service, message, dataReader);
         return dataReader;
     }
     
@@ -103,16 +103,48 @@ public abstract class AbstractInDatabindingInterceptor extends AbstractPhaseInte
         return getDataReader(message, Node.class);
     }
 
-    private void setSchemaInMessage(Service service, Message message, DataReader<?> reader) {
-        SchemaValidationType type = ServiceUtils.getSchemaValidationType(message);
-        if (type.equals(SchemaValidationType.BOTH) || type.equals(SchemaValidationType.IN)) {
+    protected boolean shouldValidate(Message message) {
+        return ServiceUtils.isSchemaValidationEnabled(SchemaValidationType.IN, message);
+    }
+    
+    /**
+     * Based on the Schema Validation configuration, will initialise the
+     * DataReader with or without the schema set.
+     * 
+     * Can also be called to override schema validation at operation level, thus the reader.setSchema(null)
+     * to remove schema validation
+     */
+    protected void setDataReaderValidation(Service service, Message message, DataReader<?> reader) {
+        if (shouldValidate(message)) {
             //all serviceInfos have the same schemas
             Schema schema = EndpointReferenceUtils.getSchema(service.getServiceInfos().get(0),
                                                              message.getExchange().getBus());
             reader.setSchema(schema);
+        } else {
+            reader.setSchema(null); // if this is being called for an operation, then override the service level
         }
     }
-
+    
+    /**
+     * Where an operation level validation type has been set, copy it to the message, so it can be interrogated
+     * by all downstream interceptors.  It is expected that sub classes will call setDataReaderValidation subsequent
+     * to this to ensure the DataReader schema reference is updated as appropriate.
+     * 
+     * @param bop
+     * @param message
+     * @param reader
+     * @see #setDataReaderValidation(Service, Message, DataReader)
+     */
+    private void setOperationSchemaValidation(OperationInfo opInfo, Message message) {
+        if (opInfo != null) {
+            SchemaValidationType validationType = 
+                (SchemaValidationType) opInfo.getProperty(Message.SCHEMA_VALIDATION_ENABLED);
+            if (validationType != null) {
+                message.put(Message.SCHEMA_VALIDATION_ENABLED, validationType);
+            }
+        }
+    }
+    
     protected DepthXMLStreamReader getXMLStreamReader(Message message) {
         XMLStreamReader xr = message.getContent(XMLStreamReader.class);
         if (xr == null) {
@@ -136,7 +168,6 @@ public abstract class AbstractInDatabindingInterceptor extends AbstractPhaseInte
      * @param name
      * @param client
      * @param index
-     * @return
      */
     protected MessagePartInfo findMessagePart(Exchange exchange, Collection<OperationInfo> operations,
                                               QName name, boolean client, int index,
@@ -196,7 +227,8 @@ public abstract class AbstractInDatabindingInterceptor extends AbstractPhaseInte
                        lastMsgInfo.getMessageInfo());
         }
         return lastChoice;
-    }    
+    }
+    
     protected MessageInfo setMessage(Message message, BindingOperationInfo operation,
                                    boolean requestor, ServiceInfo si,
                                    MessageInfo msgInfo) {
@@ -209,11 +241,14 @@ public abstract class AbstractInDatabindingInterceptor extends AbstractPhaseInte
         ex.setOneWay(operation.getOperationInfo().isOneWay());
 
         //Set standard MessageContext properties required by JAX_WS, but not specific to JAX_WS.
-        boolean synthetic = operation.getProperty("operation.is.synthetic") == Boolean.TRUE;
+        boolean synthetic = Boolean.TRUE.equals(operation.getProperty("operation.is.synthetic"));
         if (!synthetic) {
             message.put(Message.WSDL_OPERATION, operation.getName());
         }
 
+        // configure endpoint and operation level schema validation
+        setOperationSchemaValidation(operation.getOperationInfo(), message);
+        
         QName serviceQName = si.getName();
         message.put(Message.WSDL_SERVICE, serviceQName);
 
@@ -239,6 +274,9 @@ public abstract class AbstractInDatabindingInterceptor extends AbstractPhaseInte
 
         return msgInfo;
     }
+    
+    
+    
     /**
      * Returns a BindingOperationInfo if the operation is indentified as 
      * a wrapped method,  return null if it is not a wrapped method 
@@ -247,7 +285,6 @@ public abstract class AbstractInDatabindingInterceptor extends AbstractPhaseInte
      * @param exchange
      * @param name
      * @param client
-     * @return
      */
     protected BindingOperationInfo getBindingOperationInfo(Exchange exchange, QName name,
                                                               boolean client) {

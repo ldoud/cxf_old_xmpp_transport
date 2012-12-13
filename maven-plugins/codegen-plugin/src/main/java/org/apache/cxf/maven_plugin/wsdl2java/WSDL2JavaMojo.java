@@ -19,7 +19,11 @@
 
 package org.apache.cxf.maven_plugin.wsdl2java;
 
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URI;
@@ -71,12 +75,16 @@ public class WSDL2JavaMojo extends AbstractCodegenMoho {
                 errorfiles.add(f);
             }
             if (f == null) {
-                f = new File(file) {
-                    private static final long serialVersionUID = 1L;
-                    public String getAbsolutePath() {
-                        return file;
-                    }
-                };
+                if (file == null) {
+                    f = new File("null");
+                } else {
+                    f = new File(file) {
+                        private static final long serialVersionUID = 1L;
+                        public String getAbsolutePath() {
+                            return file;
+                        }
+                    };
+                }
             }
             buildContext.addMessage(f, line, column, message, BuildContext.SEVERITY_ERROR, t);
         }
@@ -234,8 +242,47 @@ public class WSDL2JavaMojo extends AbstractCodegenMoho {
                 }
             }
         }
+        if (!doWork) {
+            URI basedir = project.getBasedir().toURI();
+            String options = wsdlOption.generateCommandLine(null, basedir, wsdlURI, false).toString();
+            DataInputStream reader = null;
+            try {
+                reader = new DataInputStream(new FileInputStream(doneFile));
+                String s = reader.readUTF();
+                if (!options.equals(s)) {
+                    doWork = true;
+                }
+            } catch (Exception ex) {
+                //ignore
+            } finally {
+                if (reader != null) {
+                    try {
+                        reader.close();
+                    } catch (IOException e) {
+                        //ignore
+                    }
+                }
+            }
+        }
         return doWork;
     }
+    
+    protected void createMarkerFile(GenericWsdlOption wsdlOption, File doneFile, URI wsdlURI) throws IOException {
+        doneFile.createNewFile();
+        URI basedir = project.getBasedir().toURI();
+        String options = wsdlOption.generateCommandLine(null, basedir, wsdlURI, false).toString();
+        DataOutputStream writer = null;
+        try {
+            writer = new DataOutputStream(new FileOutputStream(doneFile));
+            writer.writeUTF(options);
+            writer.flush();
+        } finally {
+            if (writer != null) {
+                writer.close();
+            }
+        }
+    }
+    
 
     /**
      * Finds the timestamp for a given URI. Calls {@link #getBaseFileURI(URI)} prior to the timestamp
@@ -350,7 +397,7 @@ public class WSDL2JavaMojo extends AbstractCodegenMoho {
             for (Artifact a : pluginArtifacts) {
                 File file = a.getFile();
                 if (file == null) {
-                    throw new MojoExecutionException("Unable to find " + file + " for artifact "
+                    throw new MojoExecutionException("Unable to find (null) file for artifact "
                                                      + a.getGroupId() + ":" + a.getArtifactId()
                                                      + ":" + a.getVersion());
                 }
@@ -403,7 +450,7 @@ public class WSDL2JavaMojo extends AbstractCodegenMoho {
 
 
         try {
-            doneFile.createNewFile();
+            createMarkerFile(wsdlOption, doneFile, wsdlURI);
             buildContext.refresh(doneFile);
         } catch (Throwable e) {
             getLog().warn("Could not create marker file " + doneFile.getAbsolutePath());

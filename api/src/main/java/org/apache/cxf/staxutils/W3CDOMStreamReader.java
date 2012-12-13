@@ -80,8 +80,6 @@ public class W3CDOMStreamReader extends AbstractDOMStreamReader<Node, Node> {
 
     /**
      * Get the document associated with this stream.
-     * 
-     * @return
      */
     public Document getDocument() {
         return document;
@@ -369,6 +367,9 @@ public class W3CDOMStreamReader extends AbstractDOMStreamReader<Node, Node> {
         String ln = getCurrentNode().getLocalName();
         if (ln == null) {
             ln = getCurrentNode().getNodeName();
+            if (ln.indexOf(":") != -1) {
+                ln = ln.substring(ln.indexOf(":") + 1);
+            }
         }
         return ln;
     }
@@ -390,7 +391,12 @@ public class W3CDOMStreamReader extends AbstractDOMStreamReader<Node, Node> {
     public String getPrefix() {
         String prefix = getCurrentNode().getPrefix();
         if (prefix == null) {
-            prefix = "";
+            String nodeName = getCurrentNode().getNodeName();
+            if (nodeName.indexOf(":") != -1) {
+                prefix = nodeName.substring(0, nodeName.indexOf(":"));
+            }  else {
+                prefix = "";
+            }
         }
         return prefix;
     }

@@ -44,7 +44,7 @@ public class Server {
 
         Object implementor = new GreeterImpl();
         String address = "http://localhost:9000/SoapContext/GreeterPort";
-        Endpoint e = Endpoint.publish(address, implementor);
+        Endpoint.publish(address, implementor);
     }
 
     public static void main(String args[]) throws Exception {
@@ -65,6 +65,7 @@ public class Server {
         outProps.put("signatureKeyIdentifier", "DirectReference");
         outProps.put("signatureParts", "{Element}{" + WSU_NS + "}Timestamp;"
                          + "{Element}{http://schemas.xmlsoap.org/soap/envelope/}Body");
+        outProps.put("signatureAlgorithm", "http://www.w3.org/2000/09/xmldsig#rsa-sha1");
 
         bus.getOutInterceptors().add(new WSS4JOutInterceptor(outProps));
 
@@ -76,6 +77,7 @@ public class Server {
 
         inProps.put("signaturePropFile", "etc/Server_SignVerf.properties");
         inProps.put("signatureKeyIdentifier", "DirectReference");
+        inProps.put("signatureAlgorithm", "http://www.w3.org/2000/09/xmldsig#rsa-sha1");
 
         bus.getInInterceptors().add(new WSS4JInInterceptor(inProps));
 

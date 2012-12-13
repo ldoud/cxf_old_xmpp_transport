@@ -57,7 +57,7 @@ public final class Client {
         File wsdlFile = new File(args[0]);
 
         if (wsdlFile.exists()) {
-            wsdlURL = wsdlFile.toURL();
+            wsdlURL = wsdlFile.toURI().toURL();
         } else {
             wsdlURL = new URL(args[0]);
         }
@@ -69,7 +69,7 @@ public final class Client {
         Binding binding = ((BindingProvider)port).getBinding();
         ((SOAPBinding)binding).setMTOMEnabled(true);
 
-        URL fileURL = Client.class.getResource("me.bmp");
+        URL fileURL = Client.class.getResource("/me.bmp");
         File aFile = new File(new URI(fileURL.toString()));
         long fileSize = aFile.length();
         System.out.println("Filesize of me.bmp image is: " + fileSize);

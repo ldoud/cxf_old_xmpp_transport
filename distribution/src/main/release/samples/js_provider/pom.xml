@@ -22,16 +22,17 @@
     <artifactId>js_provider</artifactId>
     <name>Hello world javascript demo</name>
     <description>Hello world javascript demo</description>
-    <version>2.7.1-SNAPSHOT</version>
+    <version>2.7.2-SNAPSHOT</version>
 
     <parent>
         <groupId>org.apache.cxf.samples</groupId>
         <artifactId>cxf-samples</artifactId>
-        <version>2.7.1-SNAPSHOT</version>
+        <version>2.7.2-SNAPSHOT</version>
     </parent>
     <properties>
         <cxf.version>${project.version}</cxf.version>
         <cxf.release.base>${basedir}/../..</cxf.release.base>
+        <wsdl.file>${basedir}/src/main/resources/hello_world.wsdl</wsdl.file>
     </properties>
     <build>
         <defaultGoal>install</defaultGoal>
@@ -56,24 +57,6 @@
         </pluginManagement>
         <plugins>
             <plugin>
-                <artifactId>maven-antrun-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>prepare-transform</id>
-                        <phase>generate-sources</phase>
-                        <goals>
-                            <goal>run</goal>
-                        </goals>
-                        <configuration>
-                            <tasks>
-                                <copy file="${basedir}/src/main/java/demo/hwDispatch/client/GreetMeDocLiteralReq1.xml" todir="${basedir}/target/classes/demo/hwDispatch/client" />
-                                <copy file="${basedir}/src/main/java/demo/hwDispatch/client/GreetMeDocLiteralReq3.xml" todir="${basedir}/target/classes/demo/hwDispatch/client" />
-                            </tasks>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
                 <groupId>org.apache.cxf</groupId>
                 <artifactId>cxf-codegen-plugin</artifactId>
                 <version>${project.version}</version>
@@ -84,7 +67,8 @@
                         <configuration>
                             <wsdlOptions>
                                 <wsdlOption>
-                                    <wsdl>${basedir}/wsdl/hello_world.wsdl</wsdl>
+                                    <wsdl>${wsdl.file}</wsdl>
+                                    <frontEnd>jaxws21</frontEnd>
                                 </wsdlOption>
                             </wsdlOptions>
                         </configuration>
@@ -144,7 +128,7 @@
                                 <configuration>
                                     <mainClass>demo.hwDispatch.client.Client</mainClass>
                                     <arguments>
-                                        <argument>${basedir}/wsdl/hello_world.wsdl</argument>
+                                        <argument>${wsdl.file}</argument>
                                     </arguments>
                                 </configuration>
                             </execution>
@@ -159,18 +143,18 @@
         <dependency>
             <groupId>org.apache.cxf</groupId>
             <artifactId>cxf-rt-frontend-js</artifactId>
-            <version>2.7.1-SNAPSHOT</version>
+            <version>2.7.2-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.apache.cxf</groupId>
             <artifactId>cxf-rt-transports-http</artifactId>
-            <version>2.7.1-SNAPSHOT</version>
+            <version>2.7.2-SNAPSHOT</version>
         </dependency>
         <!-- Jetty is needed if you're using the CXFServlet -->
         <dependency>
             <groupId>org.apache.cxf</groupId>
             <artifactId>cxf-rt-transports-http-jetty</artifactId>
-            <version>2.7.1-SNAPSHOT</version>
+            <version>2.7.2-SNAPSHOT</version>
         </dependency>
     </dependencies>
 </project>

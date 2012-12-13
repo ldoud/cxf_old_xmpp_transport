@@ -368,13 +368,14 @@ public class DynamicClientFactory {
             LOG.log(Level.SEVERE , new Message("COULD_NOT_COMPILE_SRC", LOG, wsdlUrl).toString());
         }
         FileUtils.removeDir(src);
-        URLClassLoader cl;
+        URL[] urls = null;
         try {
-            cl = new URLClassLoader(new URL[] {classes.toURI().toURL()}, classLoader);
+            urls = new URL[] {classes.toURI().toURL()};
         } catch (MalformedURLException mue) {
             throw new IllegalStateException("Internal error; a directory returns a malformed URL: "
                                             + mue.getMessage(), mue);
         }
+        ClassLoader cl = ClassLoaderUtils.getURLClassLoader(urls, classLoader);
 
         JAXBContext context;
         Map<String, Object> contextProperties = jaxbContextProperties;
@@ -601,36 +602,42 @@ public class DynamicClientFactory {
     static void addClasspathFromManifest(StringBuilder classPath, File file) 
         throws URISyntaxException, IOException {
         
-        JarFile jar = new JarFile(file);
-        Attributes attr = null;
-        if (jar.getManifest() != null) {
-            attr = jar.getManifest().getMainAttributes();
-        }
-        if (attr != null) {
-            String cp = attr.getValue("Class-Path");
-            while (cp != null) {
-                String fileName = cp;
-                int idx = fileName.indexOf(' ');
-                if (idx != -1) {
-                    fileName = fileName.substring(0, idx);
-                    cp =  cp.substring(idx + 1).trim();
-                } else {
-                    cp = null;
-                }
-                URI uri = new URI(fileName);
-                File f2;
-                if (uri.isAbsolute()) {
-                    f2 = new File(uri);
-                } else {
-                    f2 = new File(file, fileName);
-                }
-                if (f2.exists()) {
-                    classPath.append(f2.getAbsolutePath());
-                    classPath.append(File.pathSeparator);
+        JarFile jar = null;
+        try {
+            jar = new JarFile(file);
+            Attributes attr = null;
+            if (jar.getManifest() != null) {
+                attr = jar.getManifest().getMainAttributes();
+            }
+            if (attr != null) {
+                String cp = attr.getValue("Class-Path");
+                while (cp != null) {
+                    String fileName = cp;
+                    int idx = fileName.indexOf(' ');
+                    if (idx != -1) {
+                        fileName = fileName.substring(0, idx);
+                        cp =  cp.substring(idx + 1).trim();
+                    } else {
+                        cp = null;
+                    }
+                    URI uri = new URI(fileName);
+                    File f2;
+                    if (uri.isAbsolute()) {
+                        f2 = new File(uri);
+                    } else {
+                        f2 = new File(file, fileName);
+                    }
+                    if (f2.exists()) {
+                        classPath.append(f2.getAbsolutePath());
+                        classPath.append(File.pathSeparator);
+                    }
                 }
             }
+        } finally {
+            if (jar != null) {
+                jar.close();
+            }
         }
-        jar.close();
     }
 
     static void setupClasspath(StringBuilder classPath, ClassLoader classLoader)
@@ -973,7 +980,7 @@ public class DynamicClientFactory {
         }
         return clone;
     }
-    public class LocationFilterReader extends StreamReaderDelegate implements XMLStreamReader {
+    public class LocationFilterReader extends StreamReaderDelegate {
         boolean isImport;
         boolean isInclude;
         int locIdx = -1;

@@ -19,21 +19,26 @@
 package org.apache.cxf.jaxrs.ext.search.sql;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.cxf.jaxrs.ext.search.AbstractSearchConditionVisitor;
 import org.apache.cxf.jaxrs.ext.search.PrimitiveStatement;
 import org.apache.cxf.jaxrs.ext.search.SearchCondition;
 import org.apache.cxf.jaxrs.ext.search.SearchUtils;
+import org.apache.cxf.jaxrs.ext.search.visitor.AbstractUntypedSearchConditionVisitor;
 
 
-public class SQLPrinterVisitor<T> extends AbstractSearchConditionVisitor<T> {
+public class SQLPrinterVisitor<T> extends AbstractUntypedSearchConditionVisitor<T, String> {
 
-    private StringBuilder sb;
     private String table;
     private String tableAlias;
     private List<String> columns;
+    
+    // Can be useful when some other code will build Select and From clauses.
+    public SQLPrinterVisitor() {
+        this(null, null, Collections.<String>emptyList());
+    }
     
     public SQLPrinterVisitor(String table, String... columns) {
         this(null, table, Arrays.asList(columns));
@@ -50,19 +55,14 @@ public class SQLPrinterVisitor<T> extends AbstractSearchConditionVisitor<T> {
                              String tableAlias,
                              List<String> columns) {
         super(fieldMap);
+        
         this.columns = columns;
         this.table = table;
         this.tableAlias = tableAlias;
     }
     
     public void visit(SearchCondition<T> sc) {
-        
-        if (sb == null) {
-            sb = new StringBuilder();
-            if (table != null) {
-                SearchUtils.startSqlQuery(sb, table, tableAlias, columns);
-            }
-        }
+        StringBuilder sb = getStringBuilder();
         
         PrimitiveStatement statement = sc.getStatement();
         if (statement != null) {
@@ -87,19 +87,27 @@ public class SQLPrinterVisitor<T> extends AbstractSearchConditionVisitor<T> {
                     first = false;
                 }
                 sb.append("(");
+                saveStringBuilder(sb);
                 condition.accept(this);
+                sb = getStringBuilder();
                 sb.append(")");
             }
         }
+        
+        saveStringBuilder(sb);
     }
     
-
-    @Deprecated
-    public String getResult() {
-        return getQuery();
+    protected StringBuilder getStringBuilder() {
+        StringBuilder sb = super.getStringBuilder();
+        if (sb == null) {
+            sb = new StringBuilder();
+            if (table != null) {
+                SearchUtils.startSqlQuery(sb, table, tableAlias, columns);
+            }
+        }
+        return sb;
     }
     
-    public String getQuery() {
-        return sb == null ? null : sb.toString();
-    }
+    
+    
 }

@@ -50,6 +50,7 @@ import org.apache.commons.httpclient.methods.multipart.FilePart;
 import org.apache.commons.httpclient.methods.multipart.MultipartRequestEntity;
 import org.apache.commons.httpclient.methods.multipart.Part;
 import org.apache.cxf.helpers.IOUtils;
+import org.apache.cxf.interceptor.LoggingInInterceptor;
 import org.apache.cxf.io.CachedOutputStream;
 import org.apache.cxf.jaxrs.client.JAXRSClientFactory;
 import org.apache.cxf.jaxrs.client.JAXRSClientFactoryBean;
@@ -132,6 +133,12 @@ public class JAXRSMultipartTest extends AbstractBusClientServerTestBase {
     public void testBookJSONFormTwoFiles() throws Exception {
         String address = "http://localhost:" + PORT + "/bookstore/books/filesform";
         doAddFormBook(address, "attachmentFormJsonFiles", 200);               
+    }
+    
+    @Test
+    public void testBookJSONFormTwoFilesNotRecursive() throws Exception {
+        String address = "http://localhost:" + PORT + "/bookstore/books/filesform";
+        doAddFormBook(address, "attachmentFormJsonFiles2", 200);               
     }
     
     @Test
@@ -359,11 +366,7 @@ public class JAXRSMultipartTest extends AbstractBusClientServerTestBase {
             "/org/apache/cxf/systest/jaxrs/resources/book.xsd"));
         xop.setAttachinfo2(bookXsd.getBytes());
      
-        if (Boolean.getBoolean("java.awt.headless")) {
-            System.out.println("Running headless. Ignoring an Image property.");
-        } else {
-            xop.setImage(getImage("/org/apache/cxf/systest/jaxrs/resources/java.jpg"));
-        }
+        xop.setImage(getImage("/org/apache/cxf/systest/jaxrs/resources/java.jpg"));
         
         XopType xop2 = client.post(xop, XopType.class);
         
@@ -411,10 +414,29 @@ public class JAXRSMultipartTest extends AbstractBusClientServerTestBase {
     }
     
     @Test
-    public void testAddBookJaxbJsonImageWebClient() throws Exception {
+    public void testAddBookJaxbJsonImageWebClientMixed() throws Exception {
+        Map<String, String> params = 
+            doTestAddBookJaxbJsonImageWebClient("multipart/mixed");
+        assertEquals(1, params.size());
+        assertNotNull(params.get("boundary"));
+        
+    }
+    
+    @Test
+    public void testAddBookJaxbJsonImageWebClientRelated() throws Exception {
+        Map<String, String> params = 
+            doTestAddBookJaxbJsonImageWebClient("multipart/related");
+        assertEquals(3, params.size());
+        assertNotNull(params.get("boundary"));
+        assertNotNull(params.get("type"));
+        assertNotNull(params.get("start"));
+    }
+    
+    private Map<String, String> doTestAddBookJaxbJsonImageWebClient(String multipartType) throws Exception {
         String address = "http://localhost:" + PORT + "/bookstore/books/jaxbjsonimage";
         WebClient client = WebClient.create(address);
-        client.type("multipart/mixed").accept("multipart/mixed");
+        WebClient.getConfig(client).getInInterceptors().add(new LoggingInInterceptor());
+        client.type(multipartType).accept(multipartType);
        
         Book jaxb = new Book("jaxb", 1L);
         Book json = new Book("json", 2L);
@@ -441,10 +463,7 @@ public class JAXRSMultipartTest extends AbstractBusClientServerTestBase {
         String ctString = 
             client.getResponse().getMetadata().getFirst("Content-Type").toString();
         MediaType mt = MediaType.valueOf(ctString);
-        Map<String, String> params = mt.getParameters();
-        assertEquals(1, params.size());
-        assertNotNull(params.get("boundary"));
-        
+        return mt.getParameters();
     }
     
     @Test
@@ -741,9 +760,10 @@ public class JAXRSMultipartTest extends AbstractBusClientServerTestBase {
     private String getStringFromInputStream(InputStream in) throws Exception {        
         CachedOutputStream bos = new CachedOutputStream();
         IOUtils.copy(in, bos);
+        String str = new String(bos.getBytes()); 
         in.close();
         bos.close();
-        return bos.getOut().toString();        
+        return str;
     }
 
     private Book readBookFromInputStream(InputStream is) throws Exception {

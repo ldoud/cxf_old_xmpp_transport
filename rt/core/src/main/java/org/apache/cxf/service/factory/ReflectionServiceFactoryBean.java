@@ -815,6 +815,13 @@ public class ReflectionServiceFactoryBean extends AbstractServiceFactoryBean {
             }
             if (part == null && isHeader && o.isUnwrapped()) {
                 part = ((UnwrappedOperationInfo)o).getWrappedOperation().getInput().getMessagePart(name);
+                if (part == null) {
+                    QName name2 = this.getInParameterName(o, method, i);
+                    part = o.getInput().getMessagePart(name2);
+                    if (part != null) {
+                        name = name2;
+                    }
+                }
                 if (part != null) {
                     //header part in wsdl, need to get this mapped in to the unwrapped form
                     MessagePartInfo inf = o.getInput().addMessagePart(part.getName());
@@ -848,11 +855,15 @@ public class ReflectionServiceFactoryBean extends AbstractServiceFactoryBean {
         } else if (isIn && isOut) {
             QName name = getInPartName(o, method, i);
             part = o.getInput().getMessagePart(name);
+            if (part == null && isHeader && o.isUnwrapped()) {
+                QName name2 = this.getInParameterName(o, method, i);
+                part = o.getInput().getMessagePart(name2);
+                if (part != null) {
+                    name = name2;
+                }
+            }
             if (part == null && this.isFromWsdl()) {
                 part = o.getInput().getMessagePartByIndex(i);
-            }
-            if (part == null && isHeader && o.isUnwrapped()) {
-                part = o.getUnwrappedOperation().getInput().getMessagePart(name);
             }
             if (part == null) {
                 return false;
@@ -1081,8 +1092,7 @@ public class ReflectionServiceFactoryBean extends AbstractServiceFactoryBean {
     protected void checkForElement(ServiceInfo serviceInfo, MessagePartInfo mpi) {
         SchemaInfo si = getOrCreateSchema(serviceInfo, mpi.getElementQName().getNamespaceURI(),
                                           getQualifyWrapperSchema());
-        XmlSchemaElement e = si.getElementByQName(mpi.getElementQName());
-        e = si.getSchema().getElementByName(mpi.getElementQName().getLocalPart());
+        XmlSchemaElement e = si.getSchema().getElementByName(mpi.getElementQName().getLocalPart());
         if (e != null) {
             mpi.setXmlSchema(e);
             return;
@@ -1298,14 +1308,13 @@ public class ReflectionServiceFactoryBean extends AbstractServiceFactoryBean {
 
         for (MessagePartInfo mpi : unwrappedMessage.getMessageParts()) {
             el = new XmlSchemaElement(schema, Boolean.TRUE.equals(mpi.getProperty(HEADER)));
-            // We hope that we can't have parts that different only in namespace.
-            el.setName(mpi.getName().getLocalPart());
             Map<Class<?>, Boolean> jaxbAnnoMap = getJaxbAnnoMap(mpi);
             if (mpi.isElement()) {
                 addImport(schema, mpi.getElementQName().getNamespaceURI());
-                el.setName(null);
                 XmlSchemaUtils.setElementRefName(el, mpi.getElementQName());
             } else {
+                // We hope that we can't have parts that different only in namespace.
+                el.setName(mpi.getName().getLocalPart());
                 if (mpi.getTypeQName() != null && !jaxbAnnoMap.containsKey(XmlList.class)) {
                     el.setSchemaTypeName(mpi.getTypeQName());
                     addImport(schema, mpi.getTypeQName().getNamespaceURI());

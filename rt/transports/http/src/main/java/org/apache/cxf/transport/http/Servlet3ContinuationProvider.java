@@ -57,43 +57,51 @@ public class Servlet3ContinuationProvider implements ContinuationProvider {
 
         if (continuation == null) {
             continuation = new Servlet3Continuation();
+        } else {
+            continuation.startAsyncAgain();
         }
         return continuation;
     }
     
     public class Servlet3Continuation implements Continuation, AsyncListener {
-        final AsyncContext context;
-        volatile boolean isNew;
+        AsyncContext context;
+        volatile boolean isNew = true;
         volatile boolean isResumed;
         volatile boolean isPending;
         volatile Object obj;
         private ContinuationCallback callback;
         public Servlet3Continuation() {
-            // It looks current Servlet3 implementation request doesn't pass the isAsyncStart 
-            // status to the redispatched request, so we use the attribute to check the statues
-            isNew = req.getAttribute(AbstractHTTPDestination.CXF_CONTINUATION_MESSAGE) == null;
-            if (isNew) {
-                req.setAttribute(AbstractHTTPDestination.CXF_CONTINUATION_MESSAGE,
-                                 inMessage.getExchange().getInMessage());
-                callback = inMessage.getExchange().get(ContinuationCallback.class);
-                context = req.startAsync(req, resp);
-                req.setAttribute(AbstractHTTPDestination.CXF_ASYNC_CONTEXT, context);
-                context.addListener(this);
-            } else {
-                context = (AsyncContext)req.getAttribute(AbstractHTTPDestination.CXF_ASYNC_CONTEXT);
-            }
+            req.setAttribute(AbstractHTTPDestination.CXF_CONTINUATION_MESSAGE,
+                             inMessage.getExchange().getInMessage());
+            callback = inMessage.getExchange().get(ContinuationCallback.class);
+            context = req.startAsync(req, resp);
+            context.addListener(this);
+        }
+        
+        void startAsyncAgain() {
             
+            AsyncContext old = context;
+            try {
+                context = req.startAsync();
+            } catch (IllegalStateException ex) { 
+                context = old;
+            }
+            context.addListener(this);
         }
         
         public boolean suspend(long timeout) {
-            if (isPending) {
-                return false;
+            if (isPending && timeout != 0) {
+                long currentTimeout = context.getTimeout();
+                timeout = currentTimeout + timeout;
+            } else {
+                isPending = true;
             }
-            context.setTimeout(timeout);
             isNew = false;
+            
             // Need to get the right message which is handled in the interceptor chain
+            context.setTimeout(timeout);
             inMessage.getExchange().getInMessage().getInterceptorChain().suspend();
-            isPending = true;
+            
             return true;
         }
         public void redispatch() {

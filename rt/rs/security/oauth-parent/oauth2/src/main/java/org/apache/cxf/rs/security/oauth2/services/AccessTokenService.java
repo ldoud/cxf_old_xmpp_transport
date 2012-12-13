@@ -24,10 +24,10 @@ import java.util.Collections;
 import java.util.List;
 
 import javax.ws.rs.Consumes;
+import javax.ws.rs.NotAuthorizedException;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
-import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
@@ -52,12 +52,7 @@ import org.apache.cxf.rs.security.oauth2.utils.OAuthUtils;
 @Path("/token")
 public class AccessTokenService extends AbstractOAuthService {
     private List<AccessTokenGrantHandler> grantHandlers = Collections.emptyList();
-    private boolean writeOptionalParameters = true;
     private boolean writeCustomErrors;
-    
-    public void setWriteOptionalParameters(boolean write) {
-        writeOptionalParameters = write;
-    }
     
     public void setWriteCustomErrors(boolean write) {
         writeCustomErrors = write;
@@ -109,7 +104,7 @@ public class AccessTokenService extends AbstractOAuthService {
         ClientAccessToken clientToken = new ClientAccessToken(serverToken.getTokenType(),
                                                               serverToken.getTokenKey());
         clientToken.setRefreshToken(serverToken.getRefreshToken());
-        if (writeOptionalParameters) {
+        if (isWriteOptionalParameters()) {
             clientToken.setExpiresIn(serverToken.getExpiresIn());
             List<OAuthPermission> perms = serverToken.getScopes();
             if (!perms.isEmpty()) {
@@ -167,7 +162,7 @@ public class AccessTokenService extends AbstractOAuthService {
         }
         
         if (client == null) {
-            throw new WebApplicationException(401);
+            throw new NotAuthorizedException(Response.status(401).build());
         }
         return client;
     }
@@ -177,7 +172,7 @@ public class AccessTokenService extends AbstractOAuthService {
         Client client = getClient(clientId);
         if (clientSecret == null || !client.getClientId().equals(clientId) 
             || !client.getClientSecret().equals(clientSecret)) {
-            throw new WebApplicationException(401);
+            throw new NotAuthorizedException(Response.status(401).build());
         }
         return client;
     }
@@ -214,5 +209,25 @@ public class AccessTokenService extends AbstractOAuthService {
     
     protected Response createErrorResponseFromBean(OAuthError errorBean) {
         return Response.status(400).entity(errorBean).build();
+    }
+    
+    /**
+     * Get the {@link Client} reference
+     * @param clientId the provided client id
+     * @return Client the client reference 
+     * @throws {@link javax.ws.rs.WebApplicationException} if no matching Client is found
+     */
+    protected Client getClient(String clientId) {
+        Client client = null;
+        try {
+            client = getValidClient(clientId);
+        } catch (OAuthServiceException ex) {
+            // log it
+        }
+        if (client == null) {
+            reportInvalidRequestError("Client ID is invalid");
+        }
+        return client;
+        
     }
 }

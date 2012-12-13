@@ -25,9 +25,19 @@ public interface CompleteCondition {
     /** Conjunct current expression with another */
     PartialCondition and();
 
+    /** shortcut for and().is() */
+    Property and(String name);
+    
     /** Disjunct current expression with another */
     PartialCondition or();
 
+    /** shortcut for or().is() */
+    Property or(String name);
+    
+    /** Wraps the current expression in ()*/
+    CompleteCondition wrap();
+    
+    
     /** Finalize condition construction and build search condition query. */
     String query();
 }

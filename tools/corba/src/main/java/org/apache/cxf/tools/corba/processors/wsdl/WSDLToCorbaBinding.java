@@ -244,10 +244,12 @@ public class WSDLToCorbaBinding {
             setBindingName(bname);
             bqname = new QName(definition.getTargetNamespace(), bname, prefix);
             int count = 0;
+            StringBuilder builder = new StringBuilder(bname);
             while (WSDLToCorbaHelper.queryBinding(definition, bqname)) {
-                bname = bname + count;
-                bqname = new QName(definition.getTargetNamespace(), bname, prefix);
+                builder.append(count);
+                bqname = new QName(definition.getTargetNamespace(), builder.toString(), prefix);
             }
+            bname = builder.toString();
         } else {
             bqname = new QName(definition.getTargetNamespace(), bname, prefix);
             // Check if the Binding with name already exists
@@ -340,14 +342,18 @@ public class WSDLToCorbaBinding {
 
             String addr = null;
             if (getAddressFile() != null) {
+                BufferedReader bufferedReader = null;
                 try {
                     File addrFile = new File(getAddressFile());
                     FileReader fileReader = new FileReader(addrFile);
-                    BufferedReader bufferedReader = new BufferedReader(fileReader);
+                    bufferedReader = new BufferedReader(fileReader);
                     addr = bufferedReader.readLine();
-                    bufferedReader.close();
                 } catch (Exception ex) {
                     throw new ToolException(ex.getMessage(), ex);
+                } finally {
+                    if (bufferedReader != null) {
+                        bufferedReader.close();
+                    }
                 }
             } else {
                 addr = getAddress();

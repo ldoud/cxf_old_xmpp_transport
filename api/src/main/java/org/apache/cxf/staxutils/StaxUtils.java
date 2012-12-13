@@ -58,6 +58,7 @@ import javax.xml.transform.Source;
 import javax.xml.transform.dom.DOMResult;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.sax.SAXSource;
+import javax.xml.transform.stax.StAXSource;
 import javax.xml.transform.stream.StreamSource;
 
 import org.w3c.dom.Attr;
@@ -228,7 +229,6 @@ public final class StaxUtils {
     /**
      * Return a new factory so that the caller can set sticky parameters.
      * @param nsAware
-     * @return
      */
     public static XMLInputFactory createXMLInputFactory(boolean nsAware) {
         XMLInputFactory factory = XMLInputFactory.newInstance();
@@ -458,6 +458,7 @@ public final class StaxUtils {
             } catch (XMLStreamException ex) {
                 //ignore
             }
+            StaxUtils.close(writer);
         }
     }
     public static void copy(Source source, XMLStreamWriter writer) throws XMLStreamException {
@@ -466,13 +467,10 @@ public final class StaxUtils {
             if (ss.getXMLStreamReader() == null) {
                 return;
             }
-        } else if ("javax.xml.transform.stax.StAXSource".equals(source.getClass().getName())) {
-            try {
-                if (source.getClass().getMethod("getXMLStreamReader").invoke(source) == null) {
-                    return;
-                }
-            } catch (Exception ex) {
-                //ignore
+        } else if (source instanceof StAXSource) {
+            StAXSource ss = (StAXSource)source;
+            if (ss.getXMLStreamReader() == null) {
+                return;
             }
         } else if (source instanceof SAXSource) {
             SAXSource ss = (SAXSource)source;
@@ -1246,8 +1244,6 @@ public final class StaxUtils {
     /**
      * @param in
      * @param encoding
-     * @param ctx
-     * @return
      */
     public static XMLStreamReader createXMLStreamReader(InputStream in, String encoding) {
         if (encoding == null) {
@@ -1266,7 +1262,6 @@ public final class StaxUtils {
 
     /**
      * @param in
-     * @return
      */
     public static XMLStreamReader createXMLStreamReader(InputStream in) {
         XMLInputFactory factory = getXMLInputFactory();
@@ -1317,13 +1312,8 @@ public final class StaxUtils {
                 if (null != el) {
                     return new W3CDOMStreamReader(el, source.getSystemId());
                 }
-            } else if ("javax.xml.transform.stax.StAXSource".equals(source.getClass().getName())) {
-                try {
-                    return (XMLStreamReader)source.getClass()
-                        .getMethod("getXMLStreamReader").invoke(source);
-                } catch (Exception ex) {
-                    //ignore
-                }
+            } else if (source instanceof StAXSource) {
+                return ((StAXSource)source).getXMLStreamReader();
             } else if (source instanceof StaxSource) {
                 return ((StaxSource)source).getXMLStreamReader();
             } else if (source instanceof SAXSource) {
@@ -1361,7 +1351,6 @@ public final class StaxUtils {
 
     /**
      * @param reader
-     * @return
      */
     public static XMLStreamReader createXMLStreamReader(Reader reader) {
         XMLInputFactory factory = getXMLInputFactory();
@@ -1408,7 +1397,6 @@ public final class StaxUtils {
     /**
      * Create a unique namespace uri/prefix combination.
      * 
-     * @param nsUri
      * @return The namespace with the specified URI. If one doesn't exist, one
      *         is created.
      * @throws XMLStreamException
@@ -1576,19 +1564,29 @@ public final class StaxUtils {
 
     public static String toString(Document doc) throws XMLStreamException {
         StringWriter sw = new StringWriter(1024);
-        XMLStreamWriter writer = createXMLStreamWriter(sw);
-        copy(doc, writer);
-        writer.flush();
+        XMLStreamWriter writer = null;
+        try {
+            writer = createXMLStreamWriter(sw);
+            copy(doc, writer);
+            writer.flush();
+        } finally {
+            StaxUtils.close(writer);
+        }
         return sw.toString();
     }
     public static String toString(Element el) throws XMLStreamException {
         StringWriter sw = new StringWriter(1024);
-        XMLStreamWriter writer = createXMLStreamWriter(sw);
-        copy(el, writer);
-        writer.flush();
+        XMLStreamWriter writer = null;
+        try {
+            writer = createXMLStreamWriter(sw);
+            copy(el, writer);
+            writer.flush();
+        } finally {
+            StaxUtils.close(writer);
+        }        
         return sw.toString();
     }
-    
+
     public static void close(XMLStreamReader reader) {
         if (reader != null) {
             try {

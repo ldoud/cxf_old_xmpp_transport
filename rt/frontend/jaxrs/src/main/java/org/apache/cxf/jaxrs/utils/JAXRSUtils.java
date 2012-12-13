@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
@@ -91,6 +90,7 @@ import javax.ws.rs.ext.WriterInterceptor;
 import javax.ws.rs.ext.WriterInterceptorContext;
 import javax.xml.namespace.QName;
 
+import org.apache.cxf.common.classloader.ClassLoaderUtils;
 import org.apache.cxf.common.i18n.BundleUtils;
 import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.common.util.PackageUtils;
@@ -116,9 +116,10 @@ import org.apache.cxf.jaxrs.impl.RequestImpl;
 import org.apache.cxf.jaxrs.impl.ResourceInfoImpl;
 import org.apache.cxf.jaxrs.impl.SecurityContextImpl;
 import org.apache.cxf.jaxrs.impl.UriInfoImpl;
-import org.apache.cxf.jaxrs.impl.WebApplicationExceptionMapper;
 import org.apache.cxf.jaxrs.impl.WriterInterceptorContextImpl;
 import org.apache.cxf.jaxrs.impl.WriterInterceptorMBW;
+import org.apache.cxf.jaxrs.model.BeanParamInfo;
+import org.apache.cxf.jaxrs.model.BeanResourceInfo;
 import org.apache.cxf.jaxrs.model.ClassResourceInfo;
 import org.apache.cxf.jaxrs.model.ClassResourceInfoComparator;
 import org.apache.cxf.jaxrs.model.OperationResourceInfo;
@@ -230,42 +231,60 @@ public final class JAXRSUtils {
         return supportedMimeTypes;
     }
     
-    @SuppressWarnings("unchecked")
     public static void injectParameters(OperationResourceInfo ori,
                                         Object requestObject,
                                         Message message) {
-        ClassResourceInfo cri = ori.getClassResourceInfo();
+        injectParameters(ori, ori.getClassResourceInfo(), requestObject, message);    
+    }
+    
+    @SuppressWarnings("unchecked")
+    public static void injectParameters(OperationResourceInfo ori,
+                                        BeanResourceInfo bri,
+                                        Object requestObject,
+                                        Message message) {
                 
-        if (cri.isSingleton() 
-            && (!cri.getParameterMethods().isEmpty() || !cri.getParameterFields().isEmpty())) {
+        if (bri.isSingleton() 
+            && (!bri.getParameterMethods().isEmpty() || !bri.getParameterFields().isEmpty())) {
             LOG.fine("Injecting request parameters into singleton resource is not thread-safe");
         }
         // Param methods
         MultivaluedMap<String, String> values = 
             (MultivaluedMap<String, String>)message.get(URITemplate.TEMPLATE_PARAMETERS);
-        for (Method m : cri.getParameterMethods()) {
+        for (Method m : bri.getParameterMethods()) {
             Parameter p = ResourceUtils.getParameter(0, m.getAnnotations(), 
                                                      m.getParameterTypes()[0]);
-            Object o = createHttpParameterValue(p, 
+            Object o;
+            
+            if (p.getType() == ParameterType.BEAN && bri instanceof ClassResourceInfo) {
+                o = createBeanParamValue(message, m.getParameterTypes()[0], ori);    
+            } else {
+                o = createHttpParameterValue(p, 
                                                 m.getParameterTypes()[0],
                                                 m.getGenericParameterTypes()[0],
                                                 m.getParameterAnnotations()[0],
                                                 message,
                                                 values,
                                                 ori);
+            }
             InjectionUtils.injectThroughMethod(requestObject, m, o);
         }
         // Param fields
-        for (Field f : cri.getParameterFields()) {
+        for (Field f : bri.getParameterFields()) {
             Parameter p = ResourceUtils.getParameter(0, f.getAnnotations(), 
                                                      f.getType());
-            Object o = createHttpParameterValue(p, 
+            Object o = null;
+            
+            if (p.getType() == ParameterType.BEAN && bri instanceof ClassResourceInfo) {
+                o = createBeanParamValue(message, f.getType(), ori);    
+            } else {
+                o = createHttpParameterValue(p, 
                                                 f.getType(),
                                                 f.getGenericType(),
                                                 f.getAnnotations(),
                                                 message,
                                                 values,
                                                 ori);
+            }
             InjectionUtils.injectFieldValue(f, requestObject, o);
         }
         
@@ -356,7 +375,7 @@ public final class JAXRSUtils {
             requestType = requestContentType == null
                                 ? ALL_TYPES : MediaType.valueOf(requestContentType);
         } catch (IllegalArgumentException ex) {
-            throw new WebApplicationException(ex, 415);
+            throw new NotSupportedException(ex);
         }
 
         int pathMatched = 0;
@@ -456,7 +475,7 @@ public final class JAXRSUtils {
         }
         Response response = 
             createResponse(resource, message, errorMsg.toString(), status, methodMatched == 0);
-        throw new WebApplicationException(response);
+        throw new ClientErrorException(response);
         
     }    
     
@@ -670,6 +689,8 @@ public final class JAXRSUtils {
                                        message);
         } else if (parameter.getType() == ParameterType.CONTEXT) {
             return createContextValue(message, parameterType, parameterClass);
+        } else if (parameter.getType() == ParameterType.BEAN) {
+            return createBeanParamValue(message, parameterClass, ori);
         } else {
             
             return createHttpParameterValue(parameter,
@@ -790,7 +811,7 @@ public final class JAXRSUtils {
                 HttpServletRequest request = (HttpServletRequest)m.get(AbstractHTTPDestination.HTTP_REQUEST);
                 FormUtils.populateMapFromString(params, m, body, enc, decode, request);
             } else {
-                if (mt != null && "multipart".equalsIgnoreCase(mt.getType()) 
+                if ("multipart".equalsIgnoreCase(mt.getType()) 
                     && MediaType.MULTIPART_FORM_DATA_TYPE.isCompatible(mt)) {
                     MultipartBody body = AttachmentUtils.getMultipartBody(mc);
                     FormUtils.populateMapFromMultipart(params, body, m, decode);
@@ -798,9 +819,9 @@ public final class JAXRSUtils {
                     org.apache.cxf.common.i18n.Message errorMsg = 
                         new org.apache.cxf.common.i18n.Message("WRONG_FORM_MEDIA_TYPE", 
                                                                BUNDLE, 
-                                                               mt == null ? "*/*" : mt.toString());
+                                                               mt.toString());
                     LOG.warning(errorMsg.toString());
-                    throw new WebApplicationException(415);
+                    throw new NotSupportedException();
                 }
             }
         }
@@ -872,6 +893,28 @@ public final class JAXRSUtils {
                                               ParameterType.COOKIE, m);
     }
     
+    public static Object createBeanParamValue(Message m, Class<?> clazz, OperationResourceInfo ori) {
+        BeanParamInfo bmi = ProviderFactory.getInstance(m).getBeanParamInfo(clazz);
+        if (bmi == null) {
+            // we could've started introspecting now but the fact no bean info 
+            // is available indicates that the one created at start up has been 
+            // lost and hence it is 500
+            LOG.warning("Bean parameter info is not available");
+            throw new InternalServerErrorException();
+        }
+        Object instance;
+        try {
+            instance = ClassLoaderUtils.loadClass(clazz.getName(), JAXRSUtils.class).newInstance();
+        } catch (Throwable t) {
+            throw new InternalServerErrorException(t);
+        }
+        JAXRSUtils.injectParameters(ori, bmi, instance, m);
+        
+        InjectionUtils.injectContexts(instance, bmi, m);
+        
+        return instance;
+    }
+    
     public static <T> T createContextValue(Message m, Type genericType, Class<T> clazz) {
  
         Message contextMessage = m.getExchange() != null ? m.getExchange().getInMessage() : m;
@@ -900,7 +943,7 @@ public final class JAXRSUtils {
         } else if (Application.class.isAssignableFrom(clazz)) {
             ProviderInfo<?> providerInfo = 
                 (ProviderInfo<?>)contextMessage.getExchange().getEndpoint().get(Application.class.getName());
-            o = providerInfo == null ? providerInfo : providerInfo.getProvider();
+            o = providerInfo == null ? null : providerInfo.getProvider();
         }
         if (o == null && contextMessage != null && !MessageUtils.isRequestor(contextMessage)) {
             o = createServletResourceValue(contextMessage, clazz);
@@ -1348,37 +1391,17 @@ public final class JAXRSUtils {
         return cls == null ? defaultExceptionType : cls;
     }
     
-    @SuppressWarnings("unchecked")
     public static <T extends Throwable> Response convertFaultToResponse(T ex, Message inMessage) {
-        ProviderFactory factory = ProviderFactory.getInstance(inMessage);
-        ExceptionMapper<T> mapper = factory.createExceptionMapper(ex, inMessage);
+        ExceptionMapper<T>  mapper =
+            ProviderFactory.getInstance(inMessage).createExceptionMapper(ex.getClass(), inMessage);
         if (mapper != null) {
-            if (ex.getClass() == WebApplicationException.class 
-                && mapper.getClass() != WebApplicationExceptionMapper.class) {
-                WebApplicationException webEx = (WebApplicationException)ex;
-                Class<?> exceptionClass = getWebApplicationExceptionClass(webEx.getResponse(), 
-                                                                          WebApplicationException.class);
-                if (exceptionClass != WebApplicationException.class) {
-                    try {
-                        Constructor<?> ctr = exceptionClass.getConstructor(Response.class);
-                        ex = (T)ctr.newInstance(webEx.getResponse());
-                    } catch (Exception ex2) {
-                        ex2.printStackTrace();
-                        return Response.serverError().build();
-                    }
-                }
-            }
-            
             try {
                 return mapper.toResponse(ex);
             } catch (Exception mapperEx) {
                 mapperEx.printStackTrace();
                 return Response.serverError().build();
-            } finally {
-                factory.clearExceptionMapperProxies();
             }
         }
-        
         return null;
         
     }
@@ -1433,7 +1456,7 @@ public final class JAXRSUtils {
                 try {
                     filter.getProvider().filter(context);
                 } catch (IOException ex) {
-                    throw new WebApplicationException(ex);
+                    throw new InternalServerErrorException(ex);
                 }
                 if (m.getExchange().get(Response.class) != null) {
                     return true;

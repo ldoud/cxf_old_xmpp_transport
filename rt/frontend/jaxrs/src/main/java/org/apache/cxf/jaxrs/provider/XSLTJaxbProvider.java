@@ -29,11 +29,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import javax.ws.rs.BadRequestException;
 import javax.ws.rs.Consumes;
+import javax.ws.rs.InternalServerErrorException;
 import javax.ws.rs.Produces;
-import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.PathSegment;
@@ -167,7 +169,14 @@ public class XSLTJaxbProvider<T> extends JAXBElementProvider<T> {
             if (t == null && supportJaxbOnly) {
                 return super.unmarshalFromInputStream(unmarshaller, is, mt);
             }
-            XMLFilter filter = factory.newXMLFilter(t);
+            XMLFilter filter = null;
+            try {
+                filter = factory.newXMLFilter(t);
+            } catch (TransformerConfigurationException ex) {
+                TemplatesImpl ti = (TemplatesImpl)t;
+                filter = factory.newXMLFilter(ti.getTemplates());
+                trySettingProperties(filter, ti);
+            }
             SAXSource source = new SAXSource(filter, new InputSource(is));
             if (systemId != null) {
                 source.setSystemId(systemId);
@@ -175,10 +184,29 @@ public class XSLTJaxbProvider<T> extends JAXBElementProvider<T> {
             return unmarshaller.unmarshal(source);
         } catch (TransformerConfigurationException ex) {
             LOG.warning("Transformation exception : " + ex.getMessage());
-            throw new WebApplicationException(ex);
+            throw new InternalServerErrorException(ex);
         }
     }
     
+    private void trySettingProperties(Object filter, TemplatesImpl ti) {
+        try {
+            //Saxon doesn't allow creating a Filter or Handler from anything other than it's original 
+            //Templates.  That then requires setting the paramaters after the fact, but there
+            //isn't a standard API for that, so we have to grab the Transformer via reflection to
+            //set the parameters.
+            Transformer tr = (Transformer)filter.getClass().getMethod("getTransformer").invoke(filter);
+            tr.setURIResolver(ti.resolver);
+            for (Map.Entry<String, Object> entry : ti.transformParameters.entrySet()) {
+                tr.setParameter(entry.getKey(), entry.getValue());
+            }
+            for (Map.Entry<String, String> entry : ti.outProps.entrySet()) {
+                tr.setOutputProperty(entry.getKey(), entry.getValue());
+            }
+        } catch (Exception e) {
+            LOG.log(Level.WARNING, "Could not set properties for transfomer", e);
+        }
+    }
+
     protected Object unmarshalFromReader(Unmarshaller unmarshaller, XMLStreamReader reader, MediaType mt) 
         throws JAXBException {
         CachedOutputStream out = new CachedOutputStream();
@@ -190,7 +218,7 @@ public class XSLTJaxbProvider<T> extends JAXBElementProvider<T> {
             writer.close();
             return unmarshalFromInputStream(unmarshaller, out.getInputStream(), mt);
         } catch (Exception ex) {
-            throw new WebApplicationException(ex);
+            throw new BadRequestException(ex);
         }
     }
     
@@ -217,8 +245,14 @@ public class XSLTJaxbProvider<T> extends JAXBElementProvider<T> {
             super.marshalToOutputStream(ms, obj, os, mt);
             return;
         }
-        
-        TransformerHandler th = factory.newTransformerHandler(t);
+        TransformerHandler th = null;
+        try {
+            th = factory.newTransformerHandler(t);
+        } catch (TransformerConfigurationException ex) {
+            TemplatesImpl ti = (TemplatesImpl)t;
+            th = factory.newTransformerHandler(ti.getTemplates());
+            this.trySettingProperties(th, ti);
+        }
         Result result = new StreamResult(os);
         if (systemId != null) {
             result.setSystemId(systemId);
@@ -307,7 +341,7 @@ public class XSLTJaxbProvider<T> extends JAXBElementProvider<T> {
                 return null;
             } else {
                 LOG.severe("No template is available");
-                throw new WebApplicationException(500);
+                throw new InternalServerErrorException();
             }
         }
         
@@ -388,6 +422,10 @@ public class XSLTJaxbProvider<T> extends JAXBElementProvider<T> {
             this.resolver = resolver;
         }
         
+        public Templates getTemplates() {
+            return templates;
+        }
+
         public void setTransformerParameter(String name, Object value) {
             transformParameters.put(name, value);
         }

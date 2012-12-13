@@ -143,13 +143,11 @@ public class TransportBinding extends Binding {
             all.addPolicyComponent(getLayout());
         }
         ea.addPolicyComponent(all);
-        PolicyComponent pc = p.normalize(builder.getPolicyRegistry(), true);
-        if (pc instanceof Policy) {
-            return (Policy)pc;
+        Policy pc = p.normalize(builder.getPolicyRegistry(), true);
+        if (pc != null) {
+            return pc;
         } else {
-            p = new Policy();
-            p.addPolicyComponent(pc);
-            return p;
+            return new Policy();
         }
     }
 }

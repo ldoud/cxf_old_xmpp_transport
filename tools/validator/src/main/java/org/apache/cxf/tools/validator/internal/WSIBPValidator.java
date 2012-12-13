@@ -56,17 +56,15 @@ public class WSIBPValidator extends AbstractDefinitionValidator {
 
     public boolean isValid() {
         for (Method m : getClass().getMethods()) {
-            Boolean res = Boolean.TRUE;
-
             if (m.getName().startsWith("check") || m.getModifiers() == Member.PUBLIC) {
                 try {
-                    res = (Boolean)m.invoke(this, new Object[] {});
+                    Boolean res = (Boolean)m.invoke(this, new Object[] {});
+                    if (!res.booleanValue()) {
+                        return false;
+                    }
                 } catch (Exception e) {
                     e.printStackTrace();
                     throw new ToolException(e);
-                }
-                if (!res.booleanValue()) {
-                    return false;
                 }
             }
         }
@@ -370,6 +368,10 @@ public class WSIBPValidator extends AbstractDefinitionValidator {
             if (!SOAPBindingUtil.isSOAPBinding(binding)) {
                 System.err.println("WSIBP Validator found <"
                                    + binding.getQName() + "> is NOT a SOAP binding");
+                continue;
+            }
+            if (binding.getPortType() == null) {
+                //will error later
                 continue;
             }
 

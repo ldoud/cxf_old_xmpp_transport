@@ -103,6 +103,7 @@ import org.apache.cxf.ws.security.policy.model.SymmetricBinding;
 import org.apache.cxf.ws.security.policy.model.Trust10;
 import org.apache.cxf.ws.security.policy.model.Trust13;
 import org.apache.cxf.ws.security.tokenstore.SecurityToken;
+import org.apache.cxf.ws.security.trust.claims.ClaimsCallback;
 import org.apache.cxf.ws.security.trust.delegation.DelegationCallback;
 import org.apache.cxf.wsdl.EndpointReferenceUtils;
 import org.apache.cxf.wsdl.WSDLManager;
@@ -154,6 +155,7 @@ public class STSClient implements Configurable, InterceptorProvider {
     protected boolean requiresEntropy = true;
     protected Element template;
     protected Element claims;
+    protected CallbackHandler claimsCallbackHandler;
     protected AlgorithmSuite algorithmSuite;
     protected String namespace = STSUtils.WST_NS_05_12;
     protected String addressingNamespace;
@@ -476,6 +478,7 @@ public class STSClient implements Configurable, InterceptorProvider {
         if (mexLoc != null) {
             try {
                 JaxWsProxyFactoryBean proxyFac = new JaxWsProxyFactoryBean();
+                proxyFac.setBindingId(soapVersion);
                 proxyFac.setAddress(mexLoc);
                 MetadataExchange exc = proxyFac.create(MetadataExchange.class);
                 Metadata metadata = exc.get2004();
@@ -1267,9 +1270,16 @@ public class STSClient implements Configurable, InterceptorProvider {
         }
     }
     
-    protected void addClaims(XMLStreamWriter writer) throws XMLStreamException {
+    protected void addClaims(XMLStreamWriter writer) throws Exception {
         if (claims != null) {
             StaxUtils.copy(claims, writer);
+        } else if (claimsCallbackHandler != null) {
+            ClaimsCallback callback = new ClaimsCallback(message);
+            claimsCallbackHandler.handle(new Callback[]{callback});
+            Element claimsElement = callback.getClaims();
+            if (claimsElement != null) {
+                StaxUtils.copy(claimsElement, writer);
+            }
         }
     }
 
@@ -1548,6 +1558,10 @@ public class STSClient implements Configurable, InterceptorProvider {
         claims = rstClaims;
     }
     
+    public Element getClaims() {
+        return claims;
+    }
+    
     public List<Interceptor<? extends Message>> getOutFaultInterceptors() {
         if (client != null) {
             return client.getOutFaultInterceptors();
@@ -1597,5 +1611,13 @@ public class STSClient implements Configurable, InterceptorProvider {
     }
     public List<Feature> getFeatures() {
         return features;
+    }
+
+    public CallbackHandler getClaimsCallbackHandler() {
+        return claimsCallbackHandler;
+    }
+
+    public void setClaimsCallbackHandler(CallbackHandler claimsCallbackHandler) {
+        this.claimsCallbackHandler = claimsCallbackHandler;
     }
 }

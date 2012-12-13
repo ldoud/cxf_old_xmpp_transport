@@ -56,6 +56,7 @@ import org.apache.cxf.common.security.SimplePrincipal;
 import org.apache.cxf.endpoint.Endpoint;
 import org.apache.cxf.helpers.CastUtils;
 import org.apache.cxf.interceptor.Fault;
+import org.apache.cxf.interceptor.URIMappingInterceptor;
 import org.apache.cxf.interceptor.security.SAMLSecurityContext;
 import org.apache.cxf.message.MessageUtils;
 import org.apache.cxf.phase.Phase;
@@ -109,10 +110,6 @@ public class WSS4JInInterceptor extends AbstractWSS4JInterceptor {
     public static final String SECURITY_PROCESSED = WSS4JInInterceptor.class.getName() + ".DONE";
     
     private static final Logger LOG = LogUtils.getL7dLogger(WSS4JInInterceptor.class);
-    private static final Logger TIME_LOG = LogUtils.getL7dLogger(WSS4JInInterceptor.class,
-                                                                 null,
-                                                                 WSS4JInInterceptor.class.getName()
-                                                                     + "-Time");
     private boolean ignoreActions;
 
     /**
@@ -182,14 +179,19 @@ public class WSS4JInInterceptor extends AbstractWSS4JInterceptor {
     }
     public final boolean isGET(SoapMessage message) {
         String method = (String)message.get(SoapMessage.HTTP_REQUEST_METHOD);
-        return "GET".equals(method) && message.getContent(XMLStreamReader.class) == null;
+        boolean isGet = 
+            "GET".equals(method) && message.getContent(XMLStreamReader.class) == null;
+        if (isGet) {
+            //make sure we skip the URIMapping as we cannot apply security requirements to that
+            message.put(URIMappingInterceptor.URIMAPPING_SKIP, Boolean.TRUE);
+        }
+        return isGet;
     }
     
     public void handleMessage(SoapMessage msg) throws Fault {
         if (msg.containsKey(SECURITY_PROCESSED) || isGET(msg)) {
             return;
         }
-        msg.put(SECURITY_PROCESSED, Boolean.TRUE);
         
         boolean utWithCallbacks = 
             MessageUtils.getContextualBoolean(msg, SecurityConstants.VALIDATE_TOKEN, true);
@@ -215,20 +217,10 @@ public class WSS4JInInterceptor extends AbstractWSS4JInterceptor {
         SOAPMessage doc = getSOAPMessage(msg);
         
         boolean doDebug = LOG.isLoggable(Level.FINE);
-        boolean doTimeLog = TIME_LOG.isLoggable(Level.FINE);
 
         SoapVersion version = msg.getVersion();
         if (doDebug) {
             LOG.fine("WSS4JInInterceptor: enter handleMessage()");
-        }
-
-        long t0 = 0;
-        long t1 = 0;
-        long t2 = 0;
-        long t3 = 0;
-
-        if (doTimeLog) {
-            t0 = System.currentTimeMillis();
         }
 
         /*
@@ -237,6 +229,7 @@ public class WSS4JInInterceptor extends AbstractWSS4JInterceptor {
          */
         try {
             reqData.setMsgContext(msg);
+            setAlgorithmSuites(msg, reqData);
             computeAction(msg, reqData);
             List<Integer> actions = new ArrayList<Integer>();
             String action = getAction(msg, version);
@@ -278,18 +271,11 @@ public class WSS4JInInterceptor extends AbstractWSS4JInterceptor {
                 || MessageUtils.isTrue(msg.getContextualProperty(SecurityConstants.ENABLE_REVOCATION));
             reqData.setEnableRevocation(enableRevocation);
             
-            if (doTimeLog) {
-                t1 = System.currentTimeMillis();
-            }
             Element elem = WSSecurityUtil.getSecurityHeader(doc.getSOAPPart(), actor);
 
             List<WSSecurityEngineResult> wsResult = engine.processSecurityHeader(
                 elem, reqData
             );
-
-            if (doTimeLog) {
-                t2 = System.currentTimeMillis();
-            }
 
             if (wsResult != null && !wsResult.isEmpty()) { // security header found
                 if (reqData.getWssConfig().isEnableSignatureConfirmation()) {
@@ -298,7 +284,7 @@ public class WSS4JInInterceptor extends AbstractWSS4JInterceptor {
 
                 storeSignature(msg, reqData, wsResult);
                 storeTimestamp(msg, reqData, wsResult);
-                checkActions(msg, reqData, wsResult, actions);
+                checkActions(msg, reqData, wsResult, actions, SAAJUtils.getBody(doc));
                 doResults(
                     msg, actor, 
                     SAAJUtils.getHeader(doc),
@@ -327,7 +313,7 @@ public class WSS4JInInterceptor extends AbstractWSS4JInterceptor {
                               SAAJUtils.getBody(doc),
                               wsResult);
                 } else {
-                    checkActions(msg, reqData, wsResult, actions);
+                    checkActions(msg, reqData, wsResult, actions, SAAJUtils.getBody(doc));
                     doResults(msg, actor,
                               SAAJUtils.getHeader(doc),
                               SAAJUtils.getBody(doc),
@@ -337,17 +323,10 @@ public class WSS4JInInterceptor extends AbstractWSS4JInterceptor {
             advanceBody(msg, SAAJUtils.getBody(doc));
             SAAJInInterceptor.replaceHeaders(doc, msg);
 
-            if (doTimeLog) {
-                t3 = System.currentTimeMillis();
-                TIME_LOG.fine("Receive request: total= " + (t3 - t0) 
-                        + " request preparation= " + (t1 - t0)
-                        + " request processing= " + (t2 - t1) 
-                        + " header, cert verify, timestamp= " + (t3 - t2) + "\n");
-            }
-
             if (doDebug) {
                 LOG.fine("WSS4JInInterceptor: exit handleMessage()");
             }
+            msg.put(SECURITY_PROCESSED, Boolean.TRUE);
 
         } catch (WSSecurityException e) {
             LOG.log(Level.WARNING, "", e);
@@ -367,7 +346,8 @@ public class WSS4JInInterceptor extends AbstractWSS4JInterceptor {
         SoapMessage msg, 
         RequestData reqData, 
         List<WSSecurityEngineResult> wsResult, 
-        List<Integer> actions
+        List<Integer> actions,
+        Element body
     ) throws WSSecurityException {
         if (ignoreActions) {
             // Not applicable for the WS-SecurityPolicy case
@@ -389,6 +369,16 @@ public class WSS4JInInterceptor extends AbstractWSS4JInterceptor {
                 + "SignatureCoverageChecker";
             LOG.warning(warning);
         }
+        
+        // Now check SAML SenderVouches + Holder Of Key requirements
+        boolean validateSAMLSubjectConf = 
+            MessageUtils.getContextualBoolean(
+                msg, SecurityConstants.VALIDATE_SAML_SUBJECT_CONFIRMATION, true
+            );
+        if (validateSAMLSubjectConf) {
+            SAMLUtils.validateSAMLResults(wsResult, msg, body);
+        }
+        
     }
     
     private void storeSignature(
@@ -439,6 +429,14 @@ public class WSS4JInInterceptor extends AbstractWSS4JInterceptor {
         if (sigCrypto != null) {
             reqData.setSigCrypto(sigCrypto);
         }
+    }
+    
+    /**
+     * Set a WSS4J AlgorithmSuite object on the RequestData context, to restrict the
+     * algorithms that are allowed for encryption, signature, etc.
+     */
+    protected void setAlgorithmSuites(SoapMessage message, RequestData data) throws WSSecurityException {
+        super.decodeAlgorithmSuite(data);
     }
 
     protected void doResults(

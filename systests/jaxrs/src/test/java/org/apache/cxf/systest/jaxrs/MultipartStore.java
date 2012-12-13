@@ -100,12 +100,8 @@ public class MultipartStore {
         
         xop.setAttachinfo2(bookXsd.getBytes());
      
-        if (Boolean.getBoolean("java.awt.headless")) {
-            System.out.println("Running headless. Ignoring an Image property.");
-        } else {
-            xop.setImage(ImageIO.read(getClass().getResource(
+        xop.setImage(ImageIO.read(getClass().getResource(
                 "/org/apache/cxf/systest/jaxrs/resources/java.jpg")));
-        }
         return xop;
     }
     
@@ -166,8 +162,8 @@ public class MultipartStore {
     
     @POST
     @Path("/books/jaxbjsonimage")
-    @Consumes("multipart/mixed")
-    @Produces("multipart/mixed")
+    @Consumes({"multipart/mixed", "multipart/related" })
+    @Produces({"multipart/mixed", "multipart/related" })
     public Map<String, Object> addBookJaxbJsonImage(@Multipart("root.message@cxf.apache.org") Book jaxb, 
                                                     @Multipart("1") Book json, 
                                                     @Multipart("2") byte[] image) throws Exception {

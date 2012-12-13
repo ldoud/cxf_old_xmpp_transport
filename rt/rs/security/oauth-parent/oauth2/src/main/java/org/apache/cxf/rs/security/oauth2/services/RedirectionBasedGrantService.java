@@ -25,12 +25,13 @@ import java.util.List;
 import java.util.UUID;
 
 import javax.servlet.http.HttpSession;
+import javax.ws.rs.BadRequestException;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
+import javax.ws.rs.NotAuthorizedException;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
-import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
 
@@ -41,6 +42,8 @@ import org.apache.cxf.rs.security.oauth2.common.OAuthPermission;
 import org.apache.cxf.rs.security.oauth2.common.ServerAccessToken;
 import org.apache.cxf.rs.security.oauth2.common.UserSubject;
 import org.apache.cxf.rs.security.oauth2.provider.OAuthServiceException;
+import org.apache.cxf.rs.security.oauth2.provider.SessionAuthenticityTokenProvider;
+import org.apache.cxf.rs.security.oauth2.provider.SubjectCreator;
 import org.apache.cxf.rs.security.oauth2.utils.OAuthConstants;
 import org.apache.cxf.rs.security.oauth2.utils.OAuthUtils;
 import org.apache.cxf.security.SecurityContext;
@@ -53,6 +56,9 @@ public abstract class RedirectionBasedGrantService extends AbstractOAuthService 
     private String supportedResponseType;
     private String supportedGrantType;
     private boolean isClientConfidential;
+    private SessionAuthenticityTokenProvider sessionAuthenticityTokenProvider;
+    private SubjectCreator subjectCreator;
+    
     protected RedirectionBasedGrantService(String supportedResponseType,
                                            String supportedGrantType,
                                            boolean isConfidential) {
@@ -128,7 +134,7 @@ public abstract class RedirectionBasedGrantService extends AbstractOAuthService 
         
         // Request a new grant only if no pre-authorized token is available
         ServerAccessToken preauthorizedToken = getDataProvider().getPreauthorizedToken(
-            client, userSubject, supportedGrantType);
+            client, requestedScope, userSubject, supportedGrantType);
         if (preauthorizedToken != null) {
             return createGrant(params,
                                client, 
@@ -191,7 +197,7 @@ public abstract class RedirectionBasedGrantService extends AbstractOAuthService 
         
         // Make sure the session is valid
         if (!compareRequestAndSessionTokens(params.getFirst(OAuthConstants.SESSION_AUTHENTICITY_TOKEN))) {
-            throw new WebApplicationException(400);     
+            throw new BadRequestException();     
         }
         //TODO: additionally we can check that the Principal that got authenticated
         // in startAuthorization is the same that got authenticated in completeAuthorization
@@ -234,8 +240,29 @@ public abstract class RedirectionBasedGrantService extends AbstractOAuthService 
         
     }
     
-    private UserSubject createUserSubject(SecurityContext securityContext) {
-        return OAuthUtils.createSubject(securityContext);
+    public void setSessionAuthenticityTokenProvider(SessionAuthenticityTokenProvider sessionAuthenticityTokenProvider) {
+        this.sessionAuthenticityTokenProvider = sessionAuthenticityTokenProvider;
+    }
+    
+    public void setSubjectCreator(SubjectCreator creator) {
+        this.subjectCreator = creator;
+    }
+    
+    protected UserSubject createUserSubject(SecurityContext securityContext) {
+        UserSubject subject = null;
+        if (subjectCreator != null) {
+            subject = subjectCreator.createUserSubject(getMessageContext());
+            if (subject != null) {
+                return subject; 
+            }
+        }
+        
+        subject = getMessageContext().getContent(UserSubject.class);
+        if (subject != null) {
+            return subject;
+        } else {
+            return OAuthUtils.createSubject(securityContext);
+        }
     }
     
     protected abstract Response createErrorResponse(MultivaluedMap<String, String> params,
@@ -254,7 +281,7 @@ public abstract class RedirectionBasedGrantService extends AbstractOAuthService 
         SecurityContext securityContext =  
             (SecurityContext)getMessageContext().get(SecurityContext.class.getName());
         if (securityContext == null || securityContext.getUserPrincipal() == null) {
-            throw new WebApplicationException(401);
+            throw new NotAuthorizedException(Response.status(401).build());
         }
         checkTransportSecurity();
         return securityContext;
@@ -279,22 +306,58 @@ public abstract class RedirectionBasedGrantService extends AbstractOAuthService 
     }
     
     private void addAuthenticityTokenToSession(OAuthAuthorizationData secData) {
-        HttpSession session = getMessageContext().getHttpServletRequest().getSession();
-        String value = UUID.randomUUID().toString();
-        secData.setAuthenticityToken(value);
-        session.setAttribute(OAuthConstants.SESSION_AUTHENTICITY_TOKEN, value);
+        final String sessionToken;
+        if (this.sessionAuthenticityTokenProvider != null) {
+            sessionToken = this.sessionAuthenticityTokenProvider.createSessionToken(getMessageContext());
+        } else {
+            HttpSession session = getMessageContext().getHttpServletRequest().getSession();
+            sessionToken = UUID.randomUUID().toString();
+            session.setAttribute(OAuthConstants.SESSION_AUTHENTICITY_TOKEN, sessionToken);
+        }
+        secData.setAuthenticityToken(sessionToken);
     }
     
     private boolean compareRequestAndSessionTokens(String requestToken) {
-        HttpSession session = getMessageContext().getHttpServletRequest().getSession();
-        String sessionToken = (String)session.getAttribute(OAuthConstants.SESSION_AUTHENTICITY_TOKEN);
-        
+        final String sessionToken;
+        if (this.sessionAuthenticityTokenProvider != null) {
+            sessionToken = sessionAuthenticityTokenProvider.removeSessionToken(getMessageContext());
+        } else {
+            HttpSession session = getMessageContext().getHttpServletRequest().getSession();
+            sessionToken = (String)session.getAttribute(OAuthConstants.SESSION_AUTHENTICITY_TOKEN);
+            if (sessionToken != null) {
+                session.removeAttribute(OAuthConstants.SESSION_AUTHENTICITY_TOKEN);    
+            }
+        }
         if (StringUtils.isEmpty(sessionToken)) {
             return false;
+        } else {
+            return requestToken.equals(sessionToken);
         }
-        
-        session.removeAttribute(OAuthConstants.SESSION_AUTHENTICITY_TOKEN);
-        return requestToken.equals(sessionToken);
     }
     
+    /**
+     * Get the {@link Client} reference
+     * @param params request parameters
+     * @return Client the client reference 
+     * @throws {@link javax.ws.rs.WebApplicationException} if no matching Client is found, 
+     *         the error is returned directly to the end user without 
+     *         following the redirect URI if any
+     */
+    protected Client getClient(MultivaluedMap<String, String> params) {
+        Client client = null;
+        
+        try {
+            client = getValidClient(params);
+        } catch (OAuthServiceException ex) {
+            if (ex.getError() != null) {
+                reportInvalidRequestError(ex.getError(), null);
+            }
+        }
+        
+        if (client == null) {
+            reportInvalidRequestError("Client ID is invalid", null);
+        }
+        return client;
+        
+    }
 }

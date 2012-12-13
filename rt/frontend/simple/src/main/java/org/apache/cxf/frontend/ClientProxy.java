@@ -78,7 +78,14 @@ public class ClientProxy implements InvocationHandler, Closeable {
             params = new Object[0];
         }
 
-        return invokeSync(method, oi, params);
+        Object o = invokeSync(method, oi, params);
+        //call a virtual method passing the object.  This causes the IBM JDK
+        //to keep the "this" pointer references and thus "this" doesn't get 
+        //finalized in the midst of an invoke operation
+        return adjustObject(o); 
+    }
+    protected Object adjustObject(Object o) {
+        return o;
     }
 
     public Object invokeSync(Method method, BindingOperationInfo oi, Object[] params)
@@ -120,4 +127,5 @@ public class ClientProxy implements InvocationHandler, Closeable {
     public static Client getClient(Object o) {
         return ((ClientProxy)Proxy.getInvocationHandler(o)).getClient();
     }
+
 }

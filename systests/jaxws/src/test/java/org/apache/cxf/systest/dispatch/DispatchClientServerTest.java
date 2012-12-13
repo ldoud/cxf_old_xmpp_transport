@@ -33,8 +33,10 @@ import javax.xml.bind.JAXBContext;
 import javax.xml.namespace.QName;
 import javax.xml.soap.MessageFactory;
 import javax.xml.soap.SOAPMessage;
+import javax.xml.transform.Source;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.sax.SAXSource;
+import javax.xml.transform.stax.StAXSource;
 import javax.xml.transform.stream.StreamSource;
 import javax.xml.ws.AsyncHandler;
 import javax.xml.ws.BindingProvider;
@@ -43,6 +45,7 @@ import javax.xml.ws.Endpoint;
 import javax.xml.ws.Response;
 import javax.xml.ws.Service;
 import javax.xml.ws.WebServiceException;
+import javax.xml.ws.handler.MessageContext;
 import javax.xml.ws.soap.SOAPBinding;
 import javax.xml.ws.soap.SOAPFaultException;
 import javax.xml.ws.wsaddressing.W3CEndpointReference;
@@ -60,6 +63,7 @@ import org.apache.cxf.binding.soap.saaj.SAAJUtils;
 import org.apache.cxf.helpers.DOMUtils;
 import org.apache.cxf.helpers.XMLUtils;
 import org.apache.cxf.jaxws.DispatchImpl;
+import org.apache.cxf.staxutils.StaxUtils;
 import org.apache.cxf.testutil.common.AbstractBusClientServerTestBase;
 import org.apache.cxf.testutil.common.AbstractBusTestServerBase;
 import org.apache.cxf.testutil.common.TestUtil;
@@ -857,6 +861,35 @@ public class DispatchClientServerTest extends AbstractBusClientServerTestBase {
         StreamSource streamSourceResp3 = tssh.getStreamSource();
         assertNotNull(streamSourceResp3);
         assertTrue("Expected: " + expected, XMLUtils.toString(streamSourceResp3).contains(expected3));
+    }
+    
+    @Test
+    public void testStAXSourcePAYLOAD() throws Exception {
+
+        URL wsdl = getClass().getResource("/wsdl/hello_world.wsdl");
+        assertNotNull(wsdl);
+
+        Service service = Service.create(wsdl, SERVICE_NAME);
+        assertNotNull(service);
+
+        Dispatch<StAXSource> disp = service.createDispatch(PORT_NAME, StAXSource.class, Service.Mode.PAYLOAD);
+        disp.getRequestContext().put(BindingProvider.ENDPOINT_ADDRESS_PROPERTY,
+                                     "http://localhost:" 
+                                     + greeterPort
+                                     + "/SOAPDispatchService/SoapDispatchPort");
+        QName opQName = new QName("http://apache.org/hello_world_soap_http", "greetMe");
+        disp.getRequestContext().put(MessageContext.WSDL_OPERATION, opQName);
+        
+        // Test request-response
+        InputStream is = getClass().getResourceAsStream("resources/GreetMeDocLiteralSOAPBodyReq.xml");
+        StAXSource staxSourceReq = new StAXSource(StaxUtils.createXMLStreamReader(is));
+        assertNotNull(staxSourceReq);
+        Source resp = disp.invoke(staxSourceReq);
+        assertNotNull(resp);
+        assertTrue(resp instanceof StAXSource);
+        String expected = "Hello TestSOAPInputMessage";
+        String actual = StaxUtils.toString(StaxUtils.read(resp));
+        assertTrue("Expected: " + expected, actual.contains(expected));
     }
 
     class TestSOAPMessageHandler implements AsyncHandler<SOAPMessage> {

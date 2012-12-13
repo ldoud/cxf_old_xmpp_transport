@@ -36,6 +36,7 @@ import org.w3c.dom.Node;
 //import org.w3c.dom.NodeList;
 
 import org.apache.cxf.Bus;
+import org.apache.cxf.annotations.SchemaValidation.SchemaValidationType;
 import org.apache.cxf.binding.soap.Soap11;
 import org.apache.cxf.binding.soap.Soap12;
 import org.apache.cxf.binding.soap.SoapFault;
@@ -50,8 +51,8 @@ import org.apache.cxf.databinding.DataBinding;
 import org.apache.cxf.headers.HeaderManager;
 import org.apache.cxf.headers.HeaderProcessor;
 import org.apache.cxf.helpers.DOMUtils;
+import org.apache.cxf.helpers.ServiceUtils;
 import org.apache.cxf.interceptor.Fault;
-import org.apache.cxf.message.MessageUtils;
 import org.apache.cxf.phase.Phase;
 import org.apache.cxf.staxutils.PartialXMLStreamReader;
 import org.apache.cxf.staxutils.StaxUtils;
@@ -126,13 +127,14 @@ public class ReadHeadersInterceptor extends AbstractSoapInterceptor {
             return;
         }
         XMLStreamReader xmlReader = message.getContent(XMLStreamReader.class);
-
+        boolean closeNeeded = false;
         if (xmlReader == null) {
             InputStream in = message.getContent(InputStream.class);
             if (in == null) {
                 throw new RuntimeException("Can't find input stream in message");
             }
             xmlReader = StaxUtils.createXMLStreamReader(in);
+            closeNeeded = true;
         }
 
         try {
@@ -232,14 +234,17 @@ public class ReadHeadersInterceptor extends AbstractSoapInterceptor {
                         hel = DOMUtils.getNextElement(hel);
                     }
                 }
-                if (MessageUtils.getContextualBoolean(message, 
-                                                      SoapMessage.SCHEMA_VALIDATION_ENABLED,
-                                                      false)) {
+
+                if (ServiceUtils.isSchemaValidationEnabled(SchemaValidationType.IN, message)) {
                     message.getInterceptorChain().add(new CheckClosingTagsInterceptor());
                 }
             }
         } catch (XMLStreamException e) {
             throw new SoapFault(new Message("XML_STREAM_EXC", LOG), e, message.getVersion().getSender());
+        } finally {
+            if (closeNeeded) {
+                StaxUtils.close(xmlReader);
+            }
         }
     }
 }

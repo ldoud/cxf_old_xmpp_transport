@@ -24,9 +24,15 @@ package org.apache.cxf.jaxrs.ext.search;
  * specific query language such as SQL, etc
  */
 
-public interface SearchConditionVisitor<T> {
+public interface SearchConditionVisitor<T, E> {
     /*
-     * Callback providing a current SearchCondition object 
+     * Accept a current SearchCondition object 
      */
     void visit(SearchCondition<T> sc);
+    
+    /**
+     * Return a built query object 
+     * @return the query
+     */
+    E getQuery();
 }

@@ -42,6 +42,7 @@ import org.apache.cxf.service.Service;
 import org.apache.cxf.service.model.BindingInfo;
 import org.apache.cxf.service.model.BindingOperationInfo;
 import org.apache.cxf.service.model.MessagePartInfo;
+import org.apache.cxf.service.model.OperationInfo;
 import org.apache.cxf.staxutils.CachingXmlEventWriter;
 import org.apache.cxf.staxutils.StaxUtils;
 import org.apache.cxf.wsdl.EndpointReferenceUtils;
@@ -62,8 +63,6 @@ public abstract class AbstractOutDatabindingInterceptor extends AbstractPhaseInt
         return Boolean.TRUE.equals(message.containsKey(Message.REQUESTOR_ROLE));
     }
     
-
-       
     protected void writeParts(Message message, Exchange exchange, 
                               BindingOperationInfo operation, MessageContentsList objs, 
                               List<MessagePartInfo> parts) {
@@ -72,6 +71,9 @@ public abstract class AbstractOutDatabindingInterceptor extends AbstractPhaseInt
         Service service = exchange.getService();
         XMLStreamWriter xmlWriter = origXmlWriter;
         CachingXmlEventWriter cache = null;
+        
+        // configure endpoint and operation level schema validation
+        setOperationSchemaValidation(operation.getOperationInfo(), message);
         
         Object en = message.getContextualProperty(OUT_BUFFERING);
         boolean allowBuffer = true;
@@ -133,10 +135,26 @@ public abstract class AbstractOutDatabindingInterceptor extends AbstractPhaseInt
         }
     }
     
+    /**
+     * Where an operation level validation type has been set, copy it to the message, so it can be interrogated
+     * by all downstream interceptors
+     * 
+     * @param bop
+     * @param message
+     * @param reader
+     */
+    private void setOperationSchemaValidation(OperationInfo opInfo, Message message) {
+        if (opInfo != null) {
+            SchemaValidationType validationType = 
+                (SchemaValidationType) opInfo.getProperty(Message.SCHEMA_VALIDATION_ENABLED);
+            if (validationType != null) {
+                message.put(Message.SCHEMA_VALIDATION_ENABLED, validationType);
+            }
+        }
+    }
     
     protected boolean shouldValidate(Message m) {
-        SchemaValidationType type = ServiceUtils.getSchemaValidationType(m);
-        return type.equals(SchemaValidationType.BOTH) || type.equals(SchemaValidationType.OUT);
+        return ServiceUtils.isSchemaValidationEnabled(SchemaValidationType.OUT, m);
     }
     
     protected boolean writeToOutputStream(Message m, BindingInfo info, Service s) {
@@ -171,11 +189,14 @@ public abstract class AbstractOutDatabindingInterceptor extends AbstractPhaseInt
         writer.setProperty(DataWriter.ENDPOINT, message.getExchange().getEndpoint());
         writer.setProperty(Message.class.getName(), message);
         
-        setSchemaOutMessage(service, message, writer);
+        setDataWriterValidation(service, message, writer);
         return writer;
     }
 
-    private void setSchemaOutMessage(Service service, Message message, DataWriter<?> writer) {
+    /**
+     * Based on the Schema Validation configuration, will initialise the DataWriter with or without the schema set.
+     */
+    private void setDataWriterValidation(Service service, Message message, DataWriter<?> writer) {
         if (shouldValidate(message)) {
             Schema schema = EndpointReferenceUtils.getSchema(service.getServiceInfos().get(0),
                                                              message.getExchange().getBus());

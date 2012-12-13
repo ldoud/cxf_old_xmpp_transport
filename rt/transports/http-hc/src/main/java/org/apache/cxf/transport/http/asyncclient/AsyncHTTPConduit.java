@@ -248,8 +248,9 @@ public class AsyncHTTPConduit extends URLConnectionHTTPConduit {
             entity = message.get(CXFHttpRequest.class);
             basicEntity = (BasicHttpEntity)entity.getEntity();
             HeapByteBufferAllocator allocator = new HeapByteBufferAllocator();
-            inbuf = new SharedInputBuffer(16320, allocator);
-            outbuf = new SharedOutputBuffer(16320, allocator);
+            int bufSize = csPolicy.getChunkLength() > 0 ? csPolicy.getChunkLength() : 16320;
+            inbuf = new SharedInputBuffer(bufSize, allocator);
+            outbuf = new SharedOutputBuffer(bufSize, allocator);
         }
         
         public boolean retransmitable() {
@@ -331,23 +332,22 @@ public class AsyncHTTPConduit extends URLConnectionHTTPConduit {
 
         public int copyFrom(InputStream in) throws IOException {
             int count = 0;
-            if (buffer != null) {
-                while (buffer != null) {
-                    int pos = buffer.size();
-                    int i = in.read(buffer.getRawBytes(), pos,
-                                    this.threshold - pos);
-                    if (i > 0) {
-                        buffer.setSize(pos + i);
-                        if (buffer.size() >= threshold) {
-                            thresholdReached();
-                            unBuffer();
-                        }
-                        count += i;
-                    } else {
-                        return count;
+            while (buffer != null) {
+                int pos = buffer.size();
+                int i = in.read(buffer.getRawBytes(), pos,
+                                this.threshold - pos);
+                if (i > 0) {
+                    buffer.setSize(pos + i);
+                    if (buffer.size() >= threshold) {
+                        thresholdReached();
+                        unBuffer();
                     }
+                    count += i;
+                } else {
+                    return count;
                 }
             }
+           
             if (cachingForRetransmission) {
                 count += IOUtils.copy(in, wrappedStream);
             } else {
@@ -469,16 +469,27 @@ public class AsyncHTTPConduit extends URLConnectionHTTPConduit {
             ctx.setAttribute(ClientContext.SCHEME_REGISTRY, reg);
             connectionFuture = new BasicFuture<Boolean>(callback);
             DefaultHttpAsyncClient c = getHttpAsyncClient();
+            CredentialsProvider credProvider = c.getCredentialsProvider();
             Credentials creds = (Credentials)outMessage.getContextualProperty(Credentials.class.getName());
-            if (creds != null) {
-                c.getCredentialsProvider().setCredentials(AuthScope.ANY, creds);
+            if (creds != null && credProvider != null) {
+                credProvider.setCredentials(AuthScope.ANY, creds);
             }
+            if (credProvider != null && credProvider.getCredentials(AuthScope.ANY) != null) {
+                ctx.setAttribute(ClientContext.USER_TOKEN,
+                                 credProvider.getCredentials(AuthScope.ANY).getUserPrincipal());
+            }
+            
             c.execute(new CXFHttpAsyncRequestProducer(entity, outbuf),
-                      new CXFHttpAsyncResponseConsumer(inbuf, responseCallback),
+                      new CXFHttpAsyncResponseConsumer(this, inbuf, responseCallback),
                       ctx,
                       callback);
         }
         
+        protected void retrySetHttpResponse(HttpResponse r) {
+            if (httpResponse == null && isAsync) {
+                setHttpResponse(r);
+            }
+        }
         protected synchronized void setHttpResponse(HttpResponse r) {
             httpResponse = r;
             if (isAsync) {
@@ -487,7 +498,7 @@ public class AsyncHTTPConduit extends URLConnectionHTTPConduit {
                     handleResponseOnWorkqueue(false, true);
                     isAsync = false; // don't trigger another start on next block. :-)
                 } catch (Exception ex) {
-                    ex.printStackTrace();
+                    //ignore, we'll try again on the next consume;
                 }
             }
             notifyAll();
@@ -712,8 +723,9 @@ public class AsyncHTTPConduit extends URLConnectionHTTPConduit {
             
             //reset the buffers
             HeapByteBufferAllocator allocator = new HeapByteBufferAllocator();
-            inbuf = new SharedInputBuffer(16320, allocator);
-            outbuf = new SharedOutputBuffer(16320, allocator);
+            int bufSize = csPolicy.getChunkLength() > 0 ? csPolicy.getChunkLength() : 16320;
+            inbuf = new SharedInputBuffer(bufSize, allocator);
+            outbuf = new SharedOutputBuffer(bufSize, allocator);
             try {
                 this.url = new URI(newURL);
                 setupConnection(outMessage, this.url, csPolicy);

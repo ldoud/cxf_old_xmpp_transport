@@ -25,6 +25,7 @@ import java.util.Map;
 
 import javax.xml.datatype.Duration;
 
+import org.apache.cxf.jaxrs.ext.search.ConditionType;
 import org.apache.cxf.jaxrs.ext.search.SearchUtils;
 import org.apache.cxf.jaxrs.ext.search.fiql.FiqlParser;
 
@@ -86,11 +87,12 @@ public class FiqlSearchConditionBuilder extends SearchConditionBuilder {
         private Builder parent;
         private DateFormat df;
         private boolean timeZoneSupported;
+        private String currentCompositeOp;
 
         public Builder(Map<String, String> properties) {
             parent = null;
-            df = SearchUtils.getDateFormat(properties, FiqlParser.DEFAULT_DATE_FORMAT);
-            timeZoneSupported = SearchUtils.isTimeZoneSupported(properties, Boolean.TRUE);
+            df = SearchUtils.getDateFormat(properties);
+            timeZoneSupported = SearchUtils.isTimeZoneSupported(properties, Boolean.FALSE);
         }
 
         public Builder(Builder parent) {
@@ -128,51 +130,106 @@ public class FiqlSearchConditionBuilder extends SearchConditionBuilder {
             return condition(FiqlParser.LT, toString(date));
         }
 
-        public CompleteCondition equalTo(String literalOrPattern) {
-            return condition(FiqlParser.EQ, literalOrPattern);
-        }
-
-        public CompleteCondition equalTo(double number) {
-            return condition(FiqlParser.EQ, number);
+        public CompleteCondition comparesTo(ConditionType type, String value) {
+            
+            return condition(toFiqlPrimitiveCondition(type), value);
         }
         
-        public CompleteCondition equalTo(long number) {
-            return condition(FiqlParser.EQ, number);
+        public CompleteCondition comparesTo(ConditionType type, Double value) {
+            
+            return condition(toFiqlPrimitiveCondition(type), value);
+        }
+        
+        public CompleteCondition comparesTo(ConditionType type, Integer value) {
+            
+            return condition(toFiqlPrimitiveCondition(type), value);
+        }
+        
+        public CompleteCondition comparesTo(ConditionType type, Long value) {
+            
+            return condition(toFiqlPrimitiveCondition(type), value);
+        }
+        
+        public CompleteCondition comparesTo(ConditionType type, Date value) {
+            
+            return condition(toFiqlPrimitiveCondition(type), value);
+        }
+        
+        public CompleteCondition comparesTo(ConditionType type, Duration value) {
+            
+            return condition(toFiqlPrimitiveCondition(type), value);
+        }
+        
+        public CompleteCondition equalTo(String value, String...moreValues) {
+            return condition(FiqlParser.EQ, value, (Object[])moreValues);
         }
 
-        public CompleteCondition equalTo(Date date) {
-            return condition(FiqlParser.EQ, toString(date));
+        public CompleteCondition equalTo(Double number, Double... moreValues) {
+            return condition(FiqlParser.EQ, number, (Object[])moreValues);
+        }
+        
+        public CompleteCondition equalTo(Long number, Long... moreValues) {
+            return condition(FiqlParser.EQ, number, (Object[])moreValues);
+        }
+        
+        public CompleteCondition equalTo(Integer number, Integer... moreValues) {
+            return condition(FiqlParser.EQ, number, (Object[])moreValues);
         }
 
-        public CompleteCondition greaterOrEqualTo(double number) {
+        public CompleteCondition equalTo(Date date, Date... moreValues) {
+            return condition(FiqlParser.EQ, date, (Object[])moreValues);
+        }
+
+        public CompleteCondition equalTo(Duration distanceFromNow, Duration... moreValues) {
+            return condition(FiqlParser.EQ, distanceFromNow, (Object[])moreValues);
+        }
+
+        
+        public CompleteCondition greaterOrEqualTo(Double number) {
             return condition(FiqlParser.GE, number);
         }
         
-        public CompleteCondition greaterOrEqualTo(long number) {
+        public CompleteCondition greaterOrEqualTo(Long number) {
+            return condition(FiqlParser.GE, number);
+        }
+        
+        public CompleteCondition greaterOrEqualTo(Integer number) {
             return condition(FiqlParser.GE, number);
         }
 
-        public CompleteCondition greaterThan(double number) {
+        public CompleteCondition greaterThan(Double number) {
             return condition(FiqlParser.GT, number);
         }
         
-        public CompleteCondition greaterThan(long number) {
+        public CompleteCondition greaterThan(Long number) {
+            return condition(FiqlParser.GT, number);
+        }
+        
+        public CompleteCondition greaterThan(Integer number) {
             return condition(FiqlParser.GT, number);
         }
 
-        public CompleteCondition lessOrEqualTo(double number) {
+        public CompleteCondition lessOrEqualTo(Double number) {
             return condition(FiqlParser.LE, number);
         }
         
-        public CompleteCondition lessOrEqualTo(long number) {
+        public CompleteCondition lessOrEqualTo(Long number) {
+            return condition(FiqlParser.LE, number);
+        }
+        
+        public CompleteCondition lessOrEqualTo(Integer number) {
             return condition(FiqlParser.LE, number);
         }
 
-        public CompleteCondition lessThan(double number) {
+        public CompleteCondition lessThan(Double number) {
             return condition(FiqlParser.LT, number);
         }
         
-        public CompleteCondition lessThan(long number) {
+        public CompleteCondition lessThan(Long number) {
+            return condition(FiqlParser.LT, number);
+        }
+        
+        public CompleteCondition lessThan(Integer number) {
             return condition(FiqlParser.LT, number);
         }
 
@@ -204,11 +261,15 @@ public class FiqlSearchConditionBuilder extends SearchConditionBuilder {
             return condition(FiqlParser.NEQ, literalOrPattern);
         }
 
-        public CompleteCondition notEqualTo(double number) {
+        public CompleteCondition notEqualTo(Double number) {
             return condition(FiqlParser.NEQ, number);
         }
         
-        public CompleteCondition notEqualTo(long number) {
+        public CompleteCondition notEqualTo(Long number) {
+            return condition(FiqlParser.NEQ, number);
+        }
+        
+        public CompleteCondition notEqualTo(Integer number) {
             return condition(FiqlParser.NEQ, number);
         }
 
@@ -224,10 +285,6 @@ public class FiqlSearchConditionBuilder extends SearchConditionBuilder {
             return condition(FiqlParser.LT, distanceFromNow);
         }
 
-        public CompleteCondition equalTo(Duration distanceFromNow) {
-            return condition(FiqlParser.EQ, distanceFromNow);
-        }
-
         public CompleteCondition notAfter(Duration distanceFromNow) {
             return condition(FiqlParser.LE, distanceFromNow);
         }
@@ -240,21 +297,62 @@ public class FiqlSearchConditionBuilder extends SearchConditionBuilder {
             return condition(FiqlParser.NEQ, distanceFromNow);
         }
 
-        protected CompleteCondition condition(String operator, Object value) {
-            result += operator + value;
+        protected CompleteCondition condition(String operator, Object value, Object...moreValues) {
+            String name = result;
+            result += operator + toString(value);
+            if (moreValues != null && moreValues.length > 0) {
+                for (Object next : moreValues) {
+                    result += "," + name + operator + toString(next);
+                }
+                currentCompositeOp = FiqlParser.OR;
+            }
             return this;
         }
         
         public PartialCondition and() {
+            if (currentCompositeOp == FiqlParser.OR 
+                || parent != null && parent.currentCompositeOp == FiqlParser.OR) {
+                if (parent != null) {
+                    parent.result = "(" + parent.result;
+                    result += ")";
+                } else {
+                    wrap();
+                }
+                currentCompositeOp = FiqlParser.AND;
+            }
             result += FiqlParser.AND;
             return this;
         }
+        
+        public Property and(String name) {
+            return and().is(name);
+        }
 
         public PartialCondition or() {
+            if (currentCompositeOp == FiqlParser.AND
+                || parent != null && parent.currentCompositeOp == FiqlParser.AND) {
+                if (parent != null) {
+                    parent.result = "(" + parent.result;
+                    result += ")";
+                } else {
+                    wrap();
+                }
+                currentCompositeOp = FiqlParser.OR;
+            }
             result += FiqlParser.OR;
             return this;
         }
+        
+        public Property or(String name) {
+            return or().is(name);
+        }
 
+        public CompleteCondition wrap() {
+            result = "(" + result + ")";
+            this.currentCompositeOp = null;
+            return this;
+        }
+        
         public CompleteCondition and(CompleteCondition c1, CompleteCondition c2, CompleteCondition... cn) {
             result += "(" + ((Builder)c1).buildPartial(this) + FiqlParser.AND
                       + ((Builder)c2).buildPartial(this);
@@ -281,15 +379,30 @@ public class FiqlSearchConditionBuilder extends SearchConditionBuilder {
             return b;
         }
 
-        private String toString(Date date) {
-            String s = df.format(date);
-            if (timeZoneSupported) {
-                // zone in XML is "+01:00" in Java is "+0100"; adding semicolon
-                int len = s.length();
-                return s.substring(0, len - 2) + ":" + s.substring(len - 2, len);
-            } else {
-                return s;
+        private String toString(Object value) {
+            if (value == null) {
+                return null;
             }
+            if (value.getClass() == Date.class) {
+                String s = df.format((Date)value);
+                if (timeZoneSupported) {
+                    // zone in XML is "+01:00" in Java is "+0100"; adding semicolon
+                    int len = s.length();
+                    return s.substring(0, len - 2) + ":" + s.substring(len - 2, len);
+                } else {
+                    return s;
+                }
+            } else {
+                return value.toString();
+            }
+        }
+        
+        private String toFiqlPrimitiveCondition(ConditionType type) {
+            String fiqlType = FiqlParser.CONDITION_MAP.get(type);
+            if (fiqlType == null) {
+                throw new IllegalArgumentException("Only primitive condition types are supported");
+            }
+            return fiqlType;
         }
     }
 

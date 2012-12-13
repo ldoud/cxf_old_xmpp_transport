@@ -72,6 +72,7 @@ import org.apache.cxf.wsdl11.ServiceWSDLBuilder;
 public class WSDLGetUtils {
     
     public static final String AUTO_REWRITE_ADDRESS = "autoRewriteSoapAddress";
+    public static final String AUTO_REWRITE_ADDRESS_ALL = "autoRewriteSoapAddressForAllServices";
     public static final String PUBLISHED_ENDPOINT_URL = "publishedEndpointUrl";
     public static final String WSDL_CREATE_IMPORTS = "org.apache.cxf.wsdl.create.imports";
     
@@ -215,7 +216,7 @@ public class WSDLGetUtils {
                         updatePublishedEndpointUrl(epurl, def, endpointInfo.getName());
                         base = epurl;
                     }
-        
+
                     WSDLWriter wsdlWriter = bus.getExtension(WSDLManager.class)
                         .getWSDLFactory().newWSDLWriter();
                     def.setExtensionRegistry(bus.getExtension(WSDLManager.class).getExtensionRegistry());
@@ -283,7 +284,6 @@ public class WSDLGetUtils {
                            Map<String, SchemaReference> smp,
                            Message message) {        
         List<Element> elementList = null;
-        Object rewriteSoapAddress = message.getContextualProperty(AUTO_REWRITE_ADDRESS);
         
         try {
             elementList = DOMUtils.findAllElementsByTagNameNS(doc.getDocumentElement(),
@@ -330,7 +330,18 @@ public class WSDLGetUtils {
                     base), e);
         }
 
-        if (rewriteSoapAddress == null || MessageUtils.isTrue(rewriteSoapAddress)) {
+        boolean rewriteAllSoapAddress = MessageUtils.isTrue(message.getContextualProperty(AUTO_REWRITE_ADDRESS_ALL));
+        if (rewriteAllSoapAddress) {
+            List<Element> portList = DOMUtils.findAllElementsByTagNameNS(doc.getDocumentElement(),
+                                                                         "http://schemas.xmlsoap.org/wsdl/",
+                                                                         "port");
+            for (Element el : portList) {
+                rewriteAddressProtocolHostPort(base, el, "http://schemas.xmlsoap.org/wsdl/soap/");
+                rewriteAddressProtocolHostPort(base, el, "http://schemas.xmlsoap.org/wsdl/soap12/");
+            }
+        }
+        Object rewriteSoapAddress = message.getContextualProperty(AUTO_REWRITE_ADDRESS);
+        if (rewriteSoapAddress == null || MessageUtils.isTrue(rewriteSoapAddress) || rewriteAllSoapAddress) {
             List<Element> serviceList = DOMUtils.findAllElementsByTagNameNS(doc.getDocumentElement(),
                                                               "http://schemas.xmlsoap.org/wsdl/",
                                                               "service");
@@ -344,7 +355,6 @@ public class WSDLGetUtils {
                         String name = el.getAttribute("name");
                         if (name.equals(message.getExchange().getEndpoint().getEndpointInfo()
                                             .getName().getLocalPart())) {
-                            
                             rewriteAddress(base, el, "http://schemas.xmlsoap.org/wsdl/soap/");
                             rewriteAddress(base, el, "http://schemas.xmlsoap.org/wsdl/soap12/");
                         }
@@ -365,6 +375,25 @@ public class WSDLGetUtils {
                                              "address");
         for (Element soapAddress : sadEls) {
             soapAddress.setAttribute("location", base);
+        }
+    }
+
+    protected void rewriteAddressProtocolHostPort(String base, Element el, String soapNS) {
+        List<Element> sadEls = DOMUtils.findAllElementsByTagNameNS(el,
+                                             soapNS,
+                                             "address");
+        for (Element soapAddress : sadEls) {
+            try {
+                String location = soapAddress.getAttribute("location").trim();
+                URL locUrl = new URL(location);
+                URL baseUrl = new URL(base);
+                StringBuilder sb = new StringBuilder(baseUrl.getProtocol());
+                sb.append("://").append(baseUrl.getHost()).append(":").append(baseUrl.getPort())
+                    .append(locUrl.getPath());
+                soapAddress.setAttribute("location", sb.toString());
+            } catch (Exception e) {
+                //ignore
+            }
         }
     }
 
@@ -436,6 +465,19 @@ public class WSDLGetUtils {
             }
         }
     }    
+    
+    public void updateWSDLPublishedEndpointAddress(Definition def, EndpointInfo endpointInfo)
+    {
+        synchronized (def) {
+            //writing a def is not threadsafe.  Sync on it to make sure
+            //we don't get any ConcurrentModificationExceptions
+            if (endpointInfo.getProperty(PUBLISHED_ENDPOINT_URL) != null) {
+                String epurl = 
+                    String.valueOf(endpointInfo.getProperty(PUBLISHED_ENDPOINT_URL));
+                updatePublishedEndpointUrl(epurl, def, endpointInfo.getName());
+            }
+        }
+    }
 
     protected void updatePublishedEndpointUrl(String publishingUrl, Definition def, QName name) {
         Collection<Service> services = CastUtils.cast(def.getAllServices().values());

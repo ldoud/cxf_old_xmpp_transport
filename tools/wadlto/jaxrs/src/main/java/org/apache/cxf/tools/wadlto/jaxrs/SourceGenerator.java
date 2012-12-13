@@ -56,6 +56,8 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
+import javax.ws.rs.container.AsyncResponse;
+import javax.ws.rs.container.Suspended;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
@@ -177,6 +179,7 @@ public class SourceGenerator {
     private boolean generateEnums;
     private boolean skipSchemaGeneration;
     private boolean inheritResourceParams;
+    private boolean useVoidForEmptyResponses = true;
     
     private Map<String, String> properties; 
     
@@ -185,13 +188,14 @@ public class SourceGenerator {
     private List<InputSource> bindingFiles = Collections.emptyList();
     private List<InputSource> schemaPackageFiles = Collections.emptyList();
     private List<String> compilerArgs = new ArrayList<String>();
+    private Set<String> suspendedAsyncMethods = Collections.emptySet();
     private Map<String, String> schemaPackageMap = Collections.emptyMap();
     private Map<String, String> javaTypeMap = Collections.emptyMap();
     private Map<String, String> schemaTypeMap = Collections.emptyMap();
     private Map<String, String> mediaTypesMap = Collections.emptyMap();
     private Bus bus;
     private boolean supportMultipleXmlReps;
-    
+        
     private SchemaCollection schemaCollection = new SchemaCollection();
     
     public SourceGenerator() {
@@ -210,6 +214,9 @@ public class SourceGenerator {
         this.wadlNamespace = ns;
     }
     
+    public void setUseVoidForEmptyResponses(boolean use) {
+        this.useVoidForEmptyResponses = use;
+    }
     public String getWadlNamespace() {
         return wadlNamespace;
     }
@@ -220,6 +227,10 @@ public class SourceGenerator {
     
     public void setSkipSchemaGeneration(boolean skip) {
         this.skipSchemaGeneration = skip;
+    }
+    
+    public void setSuspendedAsyncMethods(Set<String> asyncMethods) {
+        this.suspendedAsyncMethods = asyncMethods;
     }
     
     private String getClassPackageName(String wadlPackageName) {
@@ -381,8 +392,7 @@ public class SourceGenerator {
         for (Element el : elementEls) {
             String type = el.getAttribute("type");
             if (type.length() > 0) {
-                String[] pair = type.split(":");
-                elementTypeMap.put(el.getAttribute("name"), pair.length == 1 ? pair[0] : pair[1]);
+                elementTypeMap.put(el.getAttribute("name"), type);
             }
         }
         Element includeEl = DOMUtils.getFirstChildWithName(schemaEl, 
@@ -410,11 +420,13 @@ public class SourceGenerator {
             if (path.length() > 0) {
                 path = path.replaceAll("[\\{\\}_]*", "");
                 String[] split = path.split("/");
+                StringBuilder builder = new StringBuilder(resourceId);
                 for (int i = 0; i < split.length; i++) {
                     if (split[i].length() > 0) {
-                        resourceId += split[i].toUpperCase().charAt(0) + split[i].substring(1);
+                        builder.append(split[i].toUpperCase().charAt(0) + split[i].substring(1));
                     }
                 }
+                resourceId = builder.toString();
             }
             resourceId += DEFAULT_RESOURCE_NAME;    
         }
@@ -638,18 +650,20 @@ public class SourceGenerator {
         List<Element> allRequestReps = getWadlElements(firstRequestEl, "representation");
         List<Element> xmlRequestReps = getXmlReps(allRequestReps);
         
+        final String methodNameLowerCase = methodEl.getAttribute("name").toLowerCase();
+        String id = methodEl.getAttribute("id");
+        if (id.length() == 0) {
+            id = methodNameLowerCase;
+        }
+        final boolean suspendedAsync = suspendedAsyncMethods.contains(methodNameLowerCase)
+            || methodNameLowerCase != id && suspendedAsyncMethods.contains(id.toLowerCase());
+        
         boolean jaxpSourceRequired = xmlRequestReps.size() > 1 && !supportMultipleXmlReps;
         int numOfMethods = jaxpSourceRequired ? 1 : xmlRequestReps.size(); 
         for (int i = 0; i < numOfMethods; i++) {
             
             Element inXmlRep = xmlRequestReps.get(i);
                         
-            String methodNameLowerCase = methodEl.getAttribute("name").toLowerCase();
-            String id = methodEl.getAttribute("id");
-            if (id.length() == 0) {
-                id = methodNameLowerCase;
-            }
-            
             String suffixName = "";
             if (!jaxpSourceRequired && inXmlRep != null && xmlRequestReps.size() > 1) {
                 String value = inXmlRep.getAttribute("element");
@@ -682,7 +696,7 @@ public class SourceGenerator {
             }
             boolean responseTypeAvailable = true;
             if (methodNameLowerCase.length() > 0) {
-                responseTypeAvailable = writeResponseType(responseEls, sbCode, imports, info);
+                responseTypeAvailable = writeResponseType(responseEls, sbCode, imports, info, suspendedAsync);
                 String genMethodName = id + suffixName;
                 if (methodNameLowerCase.equals(genMethodName)) {
                     genMethodName += firstCharToUpperCase(
@@ -718,7 +732,7 @@ public class SourceGenerator {
             
             Element repElement = getActualRepElement(allRequestReps, inXmlRep); 
             writeRequestTypes(firstRequestEl, classPackage, repElement, inParamElements, 
-                    jaxpSourceRequired, sbCode, imports, info);
+                    jaxpSourceRequired, sbCode, imports, info, suspendedAsync);
             sbCode.append(")");
             if (info.isInterfaceGenerated()) {
                 sbCode.append(";");
@@ -815,9 +829,10 @@ public class SourceGenerator {
     private boolean writeResponseType(List<Element> responseEls,
                                       StringBuilder sbCode,
                                       Set<String> imports,  
-                                      ContextInfo info) {
+                                      ContextInfo info,
+                                      boolean suspendedAsync) {
         
-        Element okResponse = getOKResponse(responseEls);
+        Element okResponse = !suspendedAsync ? getOKResponse(responseEls) : null;
         
         List<Element> repElements = null;
         if (okResponse != null) {
@@ -826,8 +841,13 @@ public class SourceGenerator {
             repElements = CastUtils.cast(Collections.emptyList(), Element.class);
         }
         
-        if (repElements.size() == 0) {    
-            sbCode.append("void ");
+        if (repElements.size() == 0) {
+            if (useVoidForEmptyResponses || suspendedAsync) {
+                sbCode.append("void ");
+            } else {
+                addImport(imports, Response.class.getName());
+                sbCode.append("Response ");
+            }
             return false;
         }
         String elementName = getElementRefName(
@@ -872,7 +892,8 @@ public class SourceGenerator {
                                    boolean jaxpRequired,
                                    StringBuilder sbCode, 
                                    Set<String> imports, 
-                                   ContextInfo info) {
+                                   ContextInfo info,
+                                   boolean suspendedAsync) {
     //CHECKSTYLE:ON    
         boolean form = false;
         boolean formParamsAvailable = false;
@@ -957,6 +978,15 @@ public class SourceGenerator {
                 sbCode.append(", ");
             }
             sbCode.append(elementParamType).append(" ").append(elementParamName);
+        }
+        if (suspendedAsync) {
+            if (inParamEls.size() > 0 || elementParamType != null) {
+                sbCode.append(", ");
+            }
+            addImport(imports, Suspended.class.getName());
+            addImport(imports, AsyncResponse.class.getName());
+            sbCode.append("@").append(Suspended.class.getSimpleName()).append(" ")
+                .append(AsyncResponse.class.getSimpleName()).append(" ").append("async");
         }
     }
     
@@ -1150,10 +1180,22 @@ public class SourceGenerator {
                                       Set <String> typeClassNames) {
         String clsName = matchClassName(typeClassNames, packageName, localName);
         if (clsName == null && gInfo != null) {
-            String elementTypeName = gInfo.getElementTypeMap().get(localName);
-            clsName = matchClassName(typeClassNames, packageName, elementTypeName);
-            if (clsName == null && elementTypeName != null && elementTypeName.contains("_")) {
-                clsName = matchClassName(typeClassNames, packageName, elementTypeName.replaceAll("_", ""));
+            String prefixedElementTypeName = gInfo.getElementTypeMap().get(localName);
+            if (prefixedElementTypeName != null) {
+                String[] pair = prefixedElementTypeName.split(":");
+                String elementTypeName = pair.length == 2 ? pair[1] : pair[0];
+                clsName = matchClassName(typeClassNames, packageName, elementTypeName);
+                if (clsName == null && elementTypeName.contains("_")) {
+                    clsName = matchClassName(typeClassNames, packageName, elementTypeName.replaceAll("_", ""));
+                }
+                if (clsName == null && pair.length == 2) {
+                    String namespace = gInfo.getNsMap().get(pair[0]);
+                    if (namespace != null) {
+                        packageName = getPackageFromNamespace(namespace);
+                        clsName = matchClassName(typeClassNames, packageName, elementTypeName);
+                    }
+                }
+                
             }
         }
         if (clsName == null && javaTypeMap != null) {
@@ -1188,19 +1230,19 @@ public class SourceGenerator {
         if (repElements.size() > 1) {
             sbCode.append("{");
         }
-        String mediaTypes = "";
         boolean first = true;
+        StringBuilder mediaTypes = new StringBuilder("");
         for (int i = 0; i < repElements.size(); i++) {
             String mediaType = repElements.get(i).getAttribute("mediaType");
-            if (mediaType != null && !mediaTypes.contains(mediaType)) {
+            if (mediaType != null && (mediaTypes.indexOf(mediaType) < 0)) {
                 if (!first) { 
-                    mediaTypes += ", ";
+                    mediaTypes.append(", ");
                 }
                 first = false;
-                mediaTypes += "\"" + mediaType + "\"";
+                mediaTypes.append("\"" + mediaType + "\"");
             }
         }
-        sbCode.append(mediaTypes);
+        sbCode.append(mediaTypes.toString());
         if (repElements.size() > 1) {
             sbCode.append(" }");
         }
@@ -1225,9 +1267,15 @@ public class SourceGenerator {
         
         try {
             file.createNewFile();
-            FileOutputStream fos = new FileOutputStream(file);
-            fos.write(content.getBytes());
-            fos.close();
+            FileOutputStream fos = null;
+            try {
+                fos = new FileOutputStream(file);
+                fos.write(content.getBytes());
+            } finally {
+                if (fos != null) {
+                    fos.close();
+                }
+            }
         } catch (FileNotFoundException ex) {
             LOG.warning(file.getAbsolutePath() + " is not found");
         } catch (IOException ex) {
@@ -1354,6 +1402,10 @@ public class SourceGenerator {
     private JCodeModel createCodeModel(List<SchemaInfo> schemaElements, Set<String> type) {
         
         SchemaCompiler compiler = createCompiler(type);
+        Object elForRun = ReflectionInvokationHandler
+            .createProxyWrapper(new InnerErrorListener(),
+                            JAXBUtils.getParamClass(compiler, "setErrorListener"));
+        compiler.setErrorListener(elForRun);
         compiler.setEntityResolver(OASISCatalogManager.getCatalogManager(bus)
                                        .getEntityResolver());
         if (compilerArgs.size() > 0) {
@@ -1365,11 +1417,6 @@ public class SourceGenerator {
             compiler.getOptions().addBindFile(is);
         }
         
-        Object elForRun = ReflectionInvokationHandler
-            .createProxyWrapper(new InnerErrorListener(),
-                            JAXBUtils.getParamClass(compiler, "setErrorListener"));
-        
-        compiler.setErrorListener(elForRun);
         S2JJAXBModel intermediateModel = compiler.bind();
         JCodeModel codeModel = intermediateModel.generateCode(null, elForRun);
         JAXBUtils.logGeneratedClassNames(LOG, codeModel);

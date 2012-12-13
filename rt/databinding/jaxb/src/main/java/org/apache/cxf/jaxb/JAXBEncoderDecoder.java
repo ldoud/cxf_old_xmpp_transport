@@ -45,17 +45,13 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.logging.Logger;
 
-
 import javax.xml.bind.JAXBElement;
 import javax.xml.bind.JAXBException;
 import javax.xml.bind.Marshaller;
 import javax.xml.bind.Unmarshaller;
 import javax.xml.bind.annotation.XmlAccessType;
-import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlAttribute;
 import javax.xml.bind.annotation.adapters.HexBinaryAdapter;
-import javax.xml.bind.annotation.adapters.XmlAdapter;
-import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
 import javax.xml.bind.attachment.AttachmentMarshaller;
 import javax.xml.bind.attachment.AttachmentUnmarshaller;
 import javax.xml.namespace.NamespaceContext;
@@ -74,7 +70,6 @@ import org.w3c.dom.Attr;
 import org.w3c.dom.Element;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
-
 import org.apache.cxf.common.i18n.Message;
 import org.apache.cxf.common.jaxb.JAXBUtils;
 import org.apache.cxf.common.logging.LogUtils;
@@ -349,12 +344,7 @@ public final class JAXBEncoderDecoder {
         try {
             writer.writeStartElement("ns1", qn.getLocalPart(), qn.getNamespaceURI());
             Class<?> cls = part.getTypeClass();
-            XmlAccessorType accessorType = cls.getAnnotation(XmlAccessorType.class);
-            if (accessorType == null && cls.getPackage() != null) {
-                accessorType = cls.getPackage().getAnnotation(XmlAccessorType.class);
-            }
-            XmlAccessType accessType = accessorType != null
-                ? accessorType.value() : XmlAccessType.PUBLIC_MEMBER;
+            XmlAccessType accessType = Utils.getXmlAccessType(cls);
             String namespace = part.getElementQName().getNamespaceURI();
             
             SchemaInfo sch = part.getMessageInfo().getOperation().getInterface()
@@ -366,33 +356,29 @@ public final class JAXBEncoderDecoder {
             } else {
                 LOG.warning("Schema associated with " + namespace + " is null");
             }
-            for (Field f : ReflectionUtil.getDeclaredFields(cls)) {
-                if (JAXBContextInitializer.isFieldAccepted(f, accessType)) {
-                    XmlAttribute at = f.getAnnotation(XmlAttribute.class);
-                    if (at == null) {
-                        QName fname = new QName(namespace, f.getName());
-                        ReflectionUtil.setAccessible(f);
-                        if (JAXBSchemaInitializer.isArray(f.getGenericType())) {
-                            writeArrayObject(marshaller, writer, fname, f.get(elValue));
-                        } else {
-                            Object o = getFieldValue(f, elValue); 
-                            writeObject(marshaller, writer, newJAXBElement(fname, String.class, o));
-                        }
+            for (Field f : Utils.getFields(cls, accessType)) {
+                XmlAttribute at = f.getAnnotation(XmlAttribute.class);
+                if (at == null) {
+                    QName fname = new QName(namespace, f.getName());
+                    ReflectionUtil.setAccessible(f);
+                    if (JAXBSchemaInitializer.isArray(f.getGenericType())) {
+                        writeArrayObject(marshaller, writer, fname, f.get(elValue));
+                    } else {
+                        Object o = Utils.getFieldValue(f, elValue); 
+                        writeObject(marshaller, writer, newJAXBElement(fname, String.class, o));
                     }
                 }
             }
-            for (Method m : cls.getMethods()) {
-                if (JAXBContextInitializer.isMethodAccepted(m, accessType)) {
-                    int idx = m.getName().startsWith("get") ? 3 : 2;
-                    String name = m.getName().substring(idx);
-                    name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
-                    QName mname = new QName(namespace, name);
-                    if (JAXBSchemaInitializer.isArray(m.getGenericReturnType())) {
-                        writeArrayObject(marshaller, writer, mname, m.invoke(elValue));
-                    } else {
-                        Object o = getMethodValue(m, elValue); 
-                        writeObject(marshaller, writer, newJAXBElement(mname, String.class, o));
-                    }
+            for (Method m : Utils.getGetters(cls, accessType)) {
+                int idx = m.getName().startsWith("get") ? 3 : 2;
+                String name = m.getName().substring(idx);
+                name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
+                QName mname = new QName(namespace, name);
+                if (JAXBSchemaInitializer.isArray(m.getGenericReturnType())) {
+                    writeArrayObject(marshaller, writer, mname, m.invoke(elValue));
+                } else {
+                    Object o = Utils.getMethodValue(m, elValue); 
+                    writeObject(marshaller, writer, newJAXBElement(mname, String.class, o));
                 }
             }
 
@@ -400,9 +386,11 @@ public final class JAXBEncoderDecoder {
             writer.flush();
         } catch (Exception e) {
             throw new Fault(new Message("MARSHAL_ERROR", LOG, e.getMessage()), e);
+        } finally {
+            StaxUtils.close(writer);
         }
     }
-
+    
     private static void writeArrayObject(Marshaller marshaller, 
                                          Object source,
                                          QName mname,
@@ -463,61 +451,44 @@ public final class JAXBEncoderDecoder {
                 obj = cons.newInstance(new Object[1]);
             }
 
-            XmlAccessorType accessorType = cls.getAnnotation(XmlAccessorType.class);
-            if (accessorType == null && cls.getPackage() != null) {
-                accessorType = cls.getPackage().getAnnotation(XmlAccessorType.class);
-            }
-            XmlAccessType accessType = accessorType != null
-                ? accessorType.value() : XmlAccessType.PUBLIC_MEMBER;
+            XmlAccessType accessType = Utils.getXmlAccessType(cls);
             reader.nextTag();
             while (reader.getEventType() == XMLStreamReader.START_ELEMENT) {
                 QName q = reader.getName();
-                try {
-                    Field f = ReflectionUtil.getDeclaredField(cls, q.getLocalPart());
-                    if (f == null) {
-                        f = cls.getField(q.getLocalPart());
-                    }
+                String fieldName = q.getLocalPart();
+                Field f = Utils.getField(cls, accessType, fieldName);
+                if (f != null) {
                     Type type = f.getGenericType();
-                    if (JAXBContextInitializer.isFieldAccepted(f, accessType)) {
-                        f.setAccessible(true);
-                        if (JAXBSchemaInitializer.isArray(type)) {
-                            Class<?> compType = JAXBSchemaInitializer
-                                .getArrayComponentType(type);
-                            List<Object> ret = unmarshallArray(u, reader,
-                                                               q,
-                                                               compType,
-                                                               createList(type));
-                            Object o = ret;
-                            if (!isList(type)) {
-                                if (compType.isPrimitive()) {
-                                    o = java.lang.reflect.Array.newInstance(compType, ret.size());
-                                    for (int x = 0; x < ret.size(); x++) {
-                                        Array.set(o, x, ret.get(x));
-                                    }
-                                } else {
-                                    o = ret.toArray((Object[])Array.newInstance(compType, ret.size()));
+                    ReflectionUtil.setAccessible(f);
+                    if (JAXBSchemaInitializer.isArray(type)) {
+                        Class<?> compType = JAXBSchemaInitializer.getArrayComponentType(type);
+                        List<Object> ret = unmarshallArray(u, reader, q, compType, createList(type));
+                        Object o = ret;
+                        if (!isList(type)) {
+                            if (compType.isPrimitive()) {
+                                o = java.lang.reflect.Array.newInstance(compType, ret.size());
+                                for (int x = 0; x < ret.size(); x++) {
+                                    Array.set(o, x, ret.get(x));
                                 }
+                            } else {
+                                o = ret.toArray((Object[]) Array.newInstance(compType, ret.size()));
                             }
-
-                            f.set(obj, o);
-                        } else {
-                            Object o = getElementValue(u.unmarshal(reader, getFieldType(f)));
-                            setFieldValue(f, obj, o);
                         }
+
+                        f.set(obj, o);
                     } else {
-                        throw new NoSuchFieldException("No accessible field " + q.getLocalPart());
+                        Object o = getElementValue(u.unmarshal(reader, Utils.getFieldType(f)));
+                        Utils.setFieldValue(f, obj, o);
                     }
-                } catch (NoSuchFieldException ex) {
+                } else {
                     String s = Character.toUpperCase(q.getLocalPart().charAt(0))
                                + q.getLocalPart().substring(1);
-                    Method m = null;
-                    try {
-                        m = cls.getMethod("get" + s);
-                    } catch (NoSuchMethodException mex) {
-                        m = cls.getMethod("is" + s);
+                    Method m = Utils.getMethod(cls, accessType, "get" + s);
+                    if (m == null) {
+                        m = Utils.getMethod(cls, accessType, "is" + s);
                     }
                     Type type = m.getGenericReturnType();
-                    Method m2 = cls.getMethod("set" + s, m.getReturnType());
+                    Object o = null;
                     if (JAXBSchemaInitializer.isArray(type)) {
                         Class<?> compType = JAXBSchemaInitializer
                             .getArrayComponentType(type);
@@ -525,7 +496,7 @@ public final class JAXBEncoderDecoder {
                                                            q,
                                                            compType,
                                                            createList(type));
-                        Object o = ret;
+                        o = ret;
                         if (!isList(type)) {
                             if (compType.isPrimitive()) {
                                 o = java.lang.reflect.Array.newInstance(compType, ret.size());
@@ -536,58 +507,29 @@ public final class JAXBEncoderDecoder {
                                 o = ret.toArray((Object[])Array.newInstance(compType, ret.size()));
                             }
                         }
-
-                        m2.invoke(obj, o);
                     } else {
-                        Object o = getElementValue(u.unmarshal(reader, getMethodReturnType(m)));
-                        setMethodValue(m, m2, obj, o);
+                        o = getElementValue(u.unmarshal(reader, Utils.getMethodReturnType(m)));
                     }
+                    Method m2 = Utils.getMethod(cls, accessType, "set" + s, m.getReturnType());
+                    if (m2 != null) {
+                        if (JAXBSchemaInitializer.isArray(type)) {
+                            m2.invoke(obj, o);
+                        } else {
+                            Utils.setMethodValue(m, m2, obj, o);
+                        }
+                    } else {
+                        Field fn = ReflectionUtil.getDeclaredField(cls, q.getLocalPart());
+                        if (fn != null) {
+                            ReflectionUtil.setAccessible(fn);
+                            fn.set(obj, o);
+                        }
+                    }                
                 }
             }
             return (Exception)obj;
         } catch (Exception e) {
             throw new Fault(new Message("MARSHAL_ERROR", LOG, e.getMessage()), e);
         }
-    }
-
-    private static Class<?> getFieldType(final Field f) {
-        XmlJavaTypeAdapter adapter = JAXBContextInitializer.getFieldXJTA(f);
-        Class<?> adapterType = JAXBContextInitializer.getTypeFromXmlAdapter(adapter);
-        return adapterType != null ? adapterType : f.getType();
-    }
-
-    private static Class<?> getMethodReturnType(final Method m) {
-        XmlJavaTypeAdapter adapter = JAXBContextInitializer.getMethodXJTA(m);
-        Class<?> adapterType = JAXBContextInitializer.getTypeFromXmlAdapter(adapter);
-        return adapterType != null ? adapterType : m.getReturnType(); 
-    }
-
-    @SuppressWarnings({ "rawtypes", "unchecked" })
-    private static Object getFieldValue(Field f, Object target) throws Exception {
-        XmlJavaTypeAdapter adapterAnnotation = JAXBContextInitializer.getFieldXJTA(f);
-        XmlAdapter adapter = JAXBContextInitializer.getXmlAdapter(adapterAnnotation);
-        return adapter != null ? adapter.marshal(f.get(target)) : f.get(target); 
-    }
-
-    @SuppressWarnings({ "rawtypes", "unchecked" })
-    private static Object getMethodValue(Method m, Object target) throws Exception {
-        XmlJavaTypeAdapter adapterAnnotation = JAXBContextInitializer.getMethodXJTA(m);
-        XmlAdapter adapter = JAXBContextInitializer.getXmlAdapter(adapterAnnotation);
-        return adapter != null ? adapter.marshal(m.invoke(target)) : m.invoke(target); 
-    }
-
-    @SuppressWarnings({ "rawtypes", "unchecked" })
-    private static void setFieldValue(Field f, Object target, Object value) throws Exception {
-        XmlJavaTypeAdapter xjta = JAXBContextInitializer.getFieldXJTA(f);
-        XmlAdapter adapter = JAXBContextInitializer.getXmlAdapter(xjta);
-        f.set(target, adapter != null ? adapter.unmarshal(value) : value);
-    }
-
-    @SuppressWarnings({ "rawtypes", "unchecked" })
-    private static void setMethodValue(Method getter, Method setter, Object target, Object value) throws Exception {
-        XmlJavaTypeAdapter xjta = JAXBContextInitializer.getMethodXJTA(getter);
-        XmlAdapter adapter = JAXBContextInitializer.getXmlAdapter(xjta);
-        setter.invoke(target, adapter != null ? adapter.unmarshal(value) : value);
     }
 
     private static void writeObject(Marshaller u, Object source, Object mObj) throws Fault, JAXBException {
@@ -912,7 +854,7 @@ public final class JAXBEncoderDecoder {
                     //ignore
                 }
                 Field f = ReflectionUtil.getDeclaredField(c.getClass(), "mNamespaces");
-                f.setAccessible(true);
+                ReflectionUtil.setAccessible(f);
                 String ns[] = (String[])f.get(c);
                 for (int x = 0; x < ns.length; x += 2) {
                     if (ns[x] == null) {
@@ -926,13 +868,13 @@ public final class JAXBEncoderDecoder {
             //internal JDK/xerces version
             try {
                 Field f =  ReflectionUtil.getDeclaredField(c.getClass(), "fNamespaceContext");
-                f.setAccessible(true);
+                ReflectionUtil.setAccessible(f);
                 Object c2 = f.get(c);
                 Enumeration<?> enm = (Enumeration<?>)c2.getClass().getMethod("getAllPrefixes").invoke(c2);
                 while (enm.hasMoreElements()) {
                     String s = (String)enm.nextElement();
                     if (s == null) {
-                        nsMap.put("", c.getNamespaceURI(s));
+                        nsMap.put("", c.getNamespaceURI(null));
                     } else {
                         nsMap.put(s, c.getNamespaceURI(s));
                     }
@@ -1034,11 +976,10 @@ public final class JAXBEncoderDecoder {
                 throw new Fault(new Message("UNKNOWN_SOURCE", LOG, source.getClass().getName()));
             }
             while (reader.getName().equals(elName)) {
-                Object obj = u.unmarshal(reader, clazz);
-                if (obj instanceof JAXBElement) {
-                    obj = ((JAXBElement<?>)obj).getValue();
+                JAXBElement<?> type = u.unmarshal(reader, clazz);
+                if (type != null) {
+                    ret.add(type.getValue());
                 }
-                ret.add(obj);
                 while (reader.getEventType() != XMLStreamConstants.START_ELEMENT 
                     && reader.getEventType() != XMLStreamConstants.END_ELEMENT) {
                     reader.nextTag();

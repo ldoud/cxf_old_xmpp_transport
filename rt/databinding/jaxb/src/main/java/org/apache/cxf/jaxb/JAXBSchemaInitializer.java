@@ -26,13 +26,17 @@ import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.annotation.XmlAccessType;
-import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlList;
 import javax.xml.bind.annotation.XmlType;
 import javax.xml.bind.annotation.adapters.XmlAdapter;
@@ -59,6 +63,7 @@ import org.apache.ws.commons.schema.XmlSchemaComplexType;
 import org.apache.ws.commons.schema.XmlSchemaElement;
 import org.apache.ws.commons.schema.XmlSchemaForm;
 import org.apache.ws.commons.schema.XmlSchemaSequence;
+import org.apache.ws.commons.schema.XmlSchemaSequenceMember;
 import org.apache.ws.commons.schema.XmlSchemaSimpleType;
 import org.apache.ws.commons.schema.XmlSchemaSimpleTypeList;
 import org.apache.ws.commons.schema.XmlSchemaType;
@@ -328,7 +333,7 @@ class JAXBSchemaInitializer extends ServiceModelVisitor {
         if (schemaInfo != null) {
             el = schemaInfo.getElementByQName(qn);
             if (el == null) {
-                el = createXsElement(schemaInfo.getSchema(), part, typeName, schemaInfo);
+                createXsElement(schemaInfo.getSchema(), part, typeName, schemaInfo);
 
             } else if (!typeName.equals(el.getSchemaTypeName())) {
                 throw new Fault(new Message("CANNOT_CREATE_ELEMENT", LOG,
@@ -465,6 +470,7 @@ class JAXBSchemaInitializer extends ServiceModelVisitor {
             }
         }
         XmlType xmlTypeAnno = cls.getAnnotation(XmlType.class);
+        String[] propertyOrder = null;
         boolean respectXmlTypeNS = false;
         XmlSchema faultBeanSchema = null;
         if (xmlTypeAnno != null && !StringUtils.isEmpty(xmlTypeAnno.namespace()) 
@@ -475,9 +481,14 @@ class JAXBSchemaInitializer extends ServiceModelVisitor {
             nsMap.add(WSDLConstants.NP_SCHEMA_XSD, WSDLConstants.NS_SCHEMA_XSD);
             
             SchemaInfo faultBeanSchemaInfo = createSchemaIfNeeded(xmlTypeAnno.namespace(), nsMap);
-            faultBeanSchema = faultBeanSchemaInfo.getSchema();            
+            faultBeanSchema = faultBeanSchemaInfo.getSchema(); 
         }
         
+        if (xmlTypeAnno != null &&  xmlTypeAnno.propOrder().length > 0) {
+            propertyOrder = xmlTypeAnno.propOrder();
+            //TODO: handle @XmlAccessOrder
+        }
+                        
         XmlSchema schema = null;
         if (schemaInfo == null) {
             NamespaceMap nsMap = new NamespaceMap();
@@ -516,35 +527,25 @@ class JAXBSchemaInitializer extends ServiceModelVisitor {
         XmlSchemaSequence seq = new XmlSchemaSequence();
         ct.setParticle(seq);
         String namespace = part.getElementQName().getNamespaceURI();
-
-        XmlAccessorType accessorType = cls.getAnnotation(XmlAccessorType.class);
-        if (accessorType == null && cls.getPackage() != null) {
-            accessorType = cls.getPackage().getAnnotation(XmlAccessorType.class);
-        }
-        XmlAccessType accessType = accessorType != null ? accessorType.value() : XmlAccessType.PUBLIC_MEMBER;
-
-
-        for (Field f : cls.getDeclaredFields()) {
-            if (JAXBContextInitializer.isFieldAccepted(f, accessType)) {
-                //map field
-                Type type = getFieldType(f);
-                JAXBBeanInfo beanInfo = getBeanInfo(type);
-                if (beanInfo != null) {
-                    addElement(schema, seq, beanInfo, new QName(namespace, f.getName()), isArray(type));
-                }
+        XmlAccessType accessType = Utils.getXmlAccessType(cls);
+//
+        for (Field f : Utils.getFields(cls, accessType)) {
+            //map field
+            Type type = Utils.getFieldType(f);
+            JAXBBeanInfo beanInfo = getBeanInfo(type);
+            if (beanInfo != null) {
+                addElement(schema, seq, beanInfo, new QName(namespace, f.getName()), isArray(type));
             }
         }
-        for (Method m : cls.getMethods()) {
-            if (JAXBContextInitializer.isMethodAccepted(m, accessType)) {
-                //map method
-                Type type = getMethodReturnType(m);
-                JAXBBeanInfo beanInfo = getBeanInfo(type);
-                if (beanInfo != null) {
-                    int idx = m.getName().startsWith("get") ? 3 : 2;
-                    String name = m.getName().substring(idx);
-                    name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
-                    addElement(schema, seq, beanInfo, new QName(namespace, name), isArray(type));
-                }
+        for (Method m : Utils.getGetters(cls, accessType)) {
+            //map method
+            Type type = Utils.getMethodReturnType(m);
+            JAXBBeanInfo beanInfo = getBeanInfo(type);
+            if (beanInfo != null) {
+                int idx = m.getName().startsWith("get") ? 3 : 2;
+                String name = m.getName().substring(idx);
+                name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
+                addElement(schema, seq, beanInfo, new QName(namespace, name), isArray(type));
             }
         }
         // Create element in xsd:sequence for Exception.class
@@ -557,22 +558,18 @@ class JAXBSchemaInitializer extends ServiceModelVisitor {
             seq.getItems().add(exEle);
 
         }
+        
+        if (propertyOrder != null && propertyOrder.length == seq.getItems().size()) {
+            sortItems(seq, propertyOrder);
+        } else if (propertyOrder != null && propertyOrder.length != seq.getItems().size()) {
+            LOG.log(Level.WARNING, "propOrder in @XmlType doesn't define all schema elements :" 
+                + Arrays.toString(propertyOrder));
+        }
+       
         schemas.addCrossImports();
         part.setProperty(JAXBDataBinding.class.getName() + ".CUSTOM_EXCEPTION", Boolean.TRUE);
     }
     
-    private static Type getFieldType(final Field f) {
-        XmlJavaTypeAdapter adapter = JAXBContextInitializer.getFieldXJTA(f);
-        Class<?> adapterType = JAXBContextInitializer.getTypeFromXmlAdapter(adapter);
-        return adapterType != null ? adapterType : f.getGenericType();
-    }
-
-    private static Type getMethodReturnType(final Method m) {
-        XmlJavaTypeAdapter adapter = JAXBContextInitializer.getMethodXJTA(m);
-        Class<?> adapterType = JAXBContextInitializer.getTypeFromXmlAdapter(adapter);
-        return adapterType != null ? adapterType : m.getGenericReturnType(); 
-    }
-
     static boolean isArray(Type cls) {
         if (cls instanceof Class) {
             return ((Class<?>)cls).isArray();
@@ -639,5 +636,19 @@ class JAXBSchemaInitializer extends ServiceModelVisitor {
 
     private boolean isExistSchemaElement(XmlSchema schema, QName qn) {
         return schema.getElementByName(qn) != null;
+    }
+    
+    private void sortItems(final XmlSchemaSequence seq, final String[] propertyOrder) {
+        final List<String> propList = Arrays.asList(propertyOrder);
+        Collections.sort(seq.getItems(), new Comparator<XmlSchemaSequenceMember>() {
+            public int compare(XmlSchemaSequenceMember o1, XmlSchemaSequenceMember o2) {
+                XmlSchemaElement element1 = (XmlSchemaElement)o1;
+                XmlSchemaElement element2 = (XmlSchemaElement)o2;
+                int index1 = propList.indexOf(element1.getName());
+                int index2 = propList.indexOf(element2.getName());
+                return index1 - index2;
+            }
+        
+        });
     }
 }

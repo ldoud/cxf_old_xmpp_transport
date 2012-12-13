@@ -85,13 +85,11 @@ public class WSDLValidatorMojo extends AbstractMojo {
         }
         StringBuilder str = new StringBuilder();
 
-        if (arr != null) {
-            for (String s : arr) {
-                if (str.length() > 0) {
-                    str.append(',');
-                }
-                str.append(s);
+        for (String s : arr) {
+            if (str.length() > 0) {
+                str.append(',');
             }
+            str.append(s);
         }
         return str.toString();
     }
@@ -148,10 +146,16 @@ public class WSDLValidatorMojo extends AbstractMojo {
                 list.add(file.getCanonicalPath());
                 String[] pargs = list.toArray(new String[list.size()]);
                 
-                InputStream toolspecStream = WSDLValidator.class
-                    .getResourceAsStream("wsdlvalidator.xml");
-                ToolSpec spec = new ToolSpec(toolspecStream, false);
-                toolspecStream.close();
+                ToolSpec spec = null;
+                InputStream toolspecStream = null;
+                try {
+                    toolspecStream = WSDLValidator.class .getResourceAsStream("wsdlvalidator.xml");
+                    spec = new ToolSpec(toolspecStream, false);
+                } finally {
+                    if (toolspecStream != null) {
+                        toolspecStream.close();
+                    }
+                }
                 WSDLValidator validator = new WSDLValidator(spec);
                 validator.setArguments(pargs);
                 boolean ok = validator.executeForMaven();

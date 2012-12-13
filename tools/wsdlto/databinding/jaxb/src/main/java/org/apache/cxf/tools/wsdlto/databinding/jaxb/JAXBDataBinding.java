@@ -22,7 +22,10 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringReader;
+import java.io.StringWriter;
 import java.io.Writer;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.net.URI;
 import java.net.URL;
@@ -64,6 +67,7 @@ import org.xml.sax.Attributes;
 import org.xml.sax.InputSource;
 import org.xml.sax.Locator;
 import org.xml.sax.SAXException;
+import org.xml.sax.SAXParseException;
 import org.xml.sax.helpers.XMLFilterImpl;
 
 import com.sun.codemodel.ClassType;
@@ -78,6 +82,7 @@ import com.sun.tools.xjc.Driver;
 import com.sun.tools.xjc.ErrorReceiver;
 import com.sun.tools.xjc.Options;
 import com.sun.tools.xjc.Plugin;
+import com.sun.tools.xjc.XJCListener;
 import com.sun.tools.xjc.api.Mapping;
 import com.sun.tools.xjc.api.Property;
 import com.sun.tools.xjc.api.S2JJAXBModel;
@@ -86,6 +91,7 @@ import com.sun.tools.xjc.api.TypeAndAnnotation;
 import com.sun.tools.xjc.api.XJC;
 import com.sun.tools.xjc.reader.internalizer.AbstractReferenceFinderImpl;
 import com.sun.tools.xjc.reader.internalizer.DOMForest;
+import com.sun.tools.xjc.reader.internalizer.InternalizationLogic;
 import com.sun.tools.xjc.reader.xmlschema.parser.LSInputSAXWrapper;
 import com.sun.tools.xjc.reader.xmlschema.parser.XMLSchemaInternalizationLogic;
 
@@ -95,6 +101,7 @@ import org.apache.cxf.catalog.OASISCatalogManagerHelper;
 import org.apache.cxf.common.WSDLConstants;
 import org.apache.cxf.common.i18n.Message;
 import org.apache.cxf.common.logging.LogUtils;
+import org.apache.cxf.common.util.ReflectionUtil;
 import org.apache.cxf.common.util.StringUtils;
 import org.apache.cxf.common.util.URIParserUtil;
 import org.apache.cxf.common.xmlschema.SchemaCollection;
@@ -122,9 +129,47 @@ import org.apache.ws.commons.schema.XmlSchemaSerializer;
 import org.apache.ws.commons.schema.XmlSchemaSerializer.XmlSchemaSerializerException;
 
 public class JAXBDataBinding implements DataBindingProfile {
+    static final String XJCVERSION;
+    static {
+        
+        VersionDetectListener listener = new VersionDetectListener();
+        try {
+            Driver.run(new String[] {"-version"}, listener);
+        } catch (BadCommandLineException e) {
+            //
+        }
+        XJCVERSION = listener.getVersion();
+    }
+    
+    static final class VersionDetectListener extends XJCListener {
+        private String s = "2.1";
+        VersionDetectListener() {
+        }
+        public String getVersion() {
+            return s;
+        }
+        public void error(SAXParseException exception) {
+        }
 
+        public void fatalError(SAXParseException exception) {
+        }
 
-    public class LocationFilterReader extends StreamReaderDelegate implements XMLStreamReader {
+        public void warning(SAXParseException exception) {
+        }
+
+        public void info(SAXParseException exception) {
+        }
+
+        public void message(String msg) {
+            if (msg.contains(" ")) {
+                msg = msg.substring(msg.indexOf(' ')).trim();
+            }
+            if (!StringUtils.isEmpty(msg)) {
+                s = msg;
+            }
+        }
+    }
+    public class LocationFilterReader extends StreamReaderDelegate {
         boolean isImport;
         boolean isInclude;
         int locIdx = -1;
@@ -195,6 +240,11 @@ public class JAXBDataBinding implements DataBindingProfile {
         }
 
         private String mapSchemaLocation(String target) {
+            //See http://java.net/jira/browse/JAXB-925
+            if (this.getLocation().getSystemId().startsWith("jar:") 
+                && XJCVERSION.startsWith("2.2")) {
+                return target;
+            }
             return JAXBDataBinding.mapSchemaLocation(target, this.getLocation().getSystemId(), catalog);
         }
 
@@ -303,7 +353,10 @@ public class JAXBDataBinding implements DataBindingProfile {
         SchemaCompiler schemaCompiler = XJC.createSchemaCompiler();
         Bus bus = context.get(Bus.class);
         OASISCatalogManager catalog = bus.getExtension(OASISCatalogManager.class);
-        hackInNewInternalizationLogic(schemaCompiler, catalog);
+
+        Options opts = null;
+        opts = getOptions(schemaCompiler);
+        hackInNewInternalizationLogic(schemaCompiler, catalog, opts);
 
         ClassCollector classCollector = context.get(ClassCollector.class);
 
@@ -319,8 +372,6 @@ public class JAXBDataBinding implements DataBindingProfile {
         List<InputSource> jaxbBindings = context.getJaxbBindingFile();
         SchemaCollection schemas = (SchemaCollection) context.get(ToolConstants.XML_SCHEMA_COLLECTION);
 
-        Options opts = null;
-        opts = getOptions(schemaCompiler);
 
         List<String> args = new ArrayList<String>();
 
@@ -360,22 +411,22 @@ public class JAXBDataBinding implements DataBindingProfile {
                 opts.addGrammar(new InputSource("null"));
                 opts.parseArguments(args.toArray(new String[args.size()]));
             } catch (BadCommandLineException e) {
-                String msg = "XJC reported 'BadCommandLineException' for -xjc argument:";
+                StringBuilder msg = new StringBuilder("XJC reported 'BadCommandLineException' for -xjc argument:");
                 for (String arg : args) {
-                    msg = msg + arg + " ";
+                    msg.append(arg + " ");
                 }
-                LOG.log(Level.FINE, msg, e);
+                LOG.log(Level.FINE, msg.toString(), e);
                 if (opts != null) {
                     String pluginUsage = getPluginUsageString(opts);
-                    msg = msg + System.getProperty("line.separator");
+                    msg.append(System.getProperty("line.separator"));
                     if (args.contains("-X")) {
-                        msg = pluginUsage;
+                        throw new ToolException(pluginUsage, e);
                     } else {
-                        msg += pluginUsage;
+                        msg.append(pluginUsage);
                     }
                 }
 
-                throw new ToolException(msg, e);
+                throw new ToolException(msg.toString(), e);
             }
         }
         
@@ -455,6 +506,11 @@ public class JAXBDataBinding implements DataBindingProfile {
                     || "include".equals(localName))) {
                 String s = atts.getValue("schemaLocation");
                 if (!StringUtils.isEmpty(s)) {
+                    //See http://java.net/jira/browse/JAXB-925
+                    if (locator.getSystemId().startsWith("jar:") 
+                        && XJCVERSION.startsWith("2.2")) {
+                        return s;
+                    }
                     s = JAXBDataBinding.mapSchemaLocation(s, locator.getSystemId(), catalog);
                 }
                 return s;
@@ -463,16 +519,27 @@ public class JAXBDataBinding implements DataBindingProfile {
         }
     }
     private void hackInNewInternalizationLogic(SchemaCompiler schemaCompiler,
-                                               final OASISCatalogManager catalog) {
+                                               final OASISCatalogManager catalog,
+                                               Options opts) {
         try {
             Field f = schemaCompiler.getClass().getDeclaredField("forest");
-            f.setAccessible(true);
-            DOMForest forest = new DOMForest(new XMLSchemaInternalizationLogic() {
+            ReflectionUtil.setAccessible(f);
+            XMLSchemaInternalizationLogic logic = new XMLSchemaInternalizationLogic() {
                 public XMLFilterImpl createExternalReferenceFinder(DOMForest parent) {
                     return new ReferenceFinder(parent, catalog);
                 }
+            };
+            
+            Constructor<DOMForest> c = null;
+            DOMForest forest = null;
 
-            });
+            try {
+                c = DOMForest.class.getConstructor(InternalizationLogic.class, Options.class);
+                forest = c.newInstance(logic, opts);
+            } catch (Throwable t) {
+                c = DOMForest.class.getConstructor(InternalizationLogic.class);
+                forest = c.newInstance(logic);
+            }
             forest.setErrorHandler((ErrorReceiver)schemaCompiler);
             f.set(schemaCompiler, forest);
         } catch (Throwable ex)  {
@@ -575,7 +642,6 @@ public class JAXBDataBinding implements DataBindingProfile {
                     throw new RuntimeException(e);
                 }
                 Element ele = docs[0].getDocumentElement();
-                ele = removeImportElement(ele, key, catalog);
                 if (context.fullValidateWSDL()) {
                     String uri = null;
                     try {
@@ -583,8 +649,9 @@ public class JAXBDataBinding implements DataBindingProfile {
                     } catch (Throwable ex) {
                         //ignore - DOM level 3
                     }
-                    validateSchema(ele, uri, catalog);
+                    validateSchema(ele, uri, catalog, schemaCollection);
                 }
+                ele = removeImportElement(ele, key, catalog);
                 try {
                     docs[0].setDocumentURI(key);
                 } catch (Throwable t) {
@@ -650,10 +717,10 @@ public class JAXBDataBinding implements DataBindingProfile {
                 }
                 ids.add(key);
                 Element ele = sci.getElement();
-                ele = removeImportElement(ele, key, catalog);
                 if (context.fullValidateWSDL()) {
-                    validateSchema(ele, sci.getSystemId(), catalog);
+                    validateSchema(ele, sci.getSystemId(), catalog, schemaCollection);
                 }
+                ele = removeImportElement(ele, key, catalog);
                 InputSource is = new InputSource((InputStream)null);
                 //key = key.replaceFirst("#types[0-9]+$", "");
                 is.setSystemId(key);
@@ -739,27 +806,25 @@ public class JAXBDataBinding implements DataBindingProfile {
                                                                  (String)context.get(ToolConstants.CFG_ENCODING),
                                                                  context.get(OutputStreamCreator.class));
 
-            if (rawJaxbModelGenCode instanceof S2JJAXBModel) {
-                S2JJAXBModel schem2JavaJaxbModel = rawJaxbModelGenCode;
+            S2JJAXBModel schem2JavaJaxbModel = rawJaxbModelGenCode;
 
-                ClassCollector classCollector = context.get(ClassCollector.class);
-                for (JClass cls : schem2JavaJaxbModel.getAllObjectFactories()) {
-                    classCollector.getTypesPackages().add(cls._package().name());
-                }
-
-                JCodeModel jcodeModel = schem2JavaJaxbModel.generateCode(null, null);
-
-                if (!isSuppressCodeGen()) {
-                    jcodeModel.build(fileCodeWriter);
-                }
-
-                context.put(JCodeModel.class, jcodeModel);
-
-                for (String str : fileCodeWriter.getExcludeFileList()) {
-                    context.getExcludeFileList().add(str);
-                }
-                
+            ClassCollector classCollector = context.get(ClassCollector.class);
+            for (JClass cls : schem2JavaJaxbModel.getAllObjectFactories()) {
+                classCollector.getTypesPackages().add(cls._package().name());
             }
+
+            JCodeModel jcodeModel = schem2JavaJaxbModel.generateCode(null, null);
+
+            if (!isSuppressCodeGen()) {
+                jcodeModel.build(fileCodeWriter);
+            }
+
+            context.put(JCodeModel.class, jcodeModel);
+
+            for (String str : fileCodeWriter.getExcludeFileList()) {
+                context.getExcludeFileList().add(str);
+            }
+
             return;
         } catch (IOException e) {
             Message msg = new Message("FAIL_TO_GENERATE_TYPES", LOG);
@@ -891,8 +956,10 @@ public class JAXBDataBinding implements DataBindingProfile {
     }
 
 
-    public void validateSchema(Element ele, String uri,
-                               final OASISCatalogManager catalog) throws ToolException {
+    public void validateSchema(Element ele, 
+                               String uri,
+                               final OASISCatalogManager catalog,
+                               final SchemaCollection schemaCollection) throws ToolException {
         SchemaFactory schemaFact = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
         schemaFact.setResourceResolver(new LSResourceResolver() {
             public LSInput resolveResource(String type,
@@ -901,6 +968,15 @@ public class JAXBDataBinding implements DataBindingProfile {
                                            String systemId,
                                            String baseURI) {
                 String s = JAXBDataBinding.mapSchemaLocation(systemId, baseURI, catalog);
+                //System.out.println(namespaceURI + " " + systemId + " " + baseURI + " " + s);
+                if (s == null) {
+                    XmlSchema sc = schemaCollection.getSchemaByTargetNamespace(namespaceURI);
+                    StringWriter writer = new StringWriter();
+                    sc.write(writer);
+                    InputSource src = new InputSource(new StringReader(writer.toString()));
+                    src.setSystemId(sc.getSourceURI());
+                    return new LSInputSAXWrapper(src);
+                }
                 return new LSInputSAXWrapper(new InputSource(s));
             }
         });
@@ -911,6 +987,7 @@ public class JAXBDataBinding implements DataBindingProfile {
             if (e.getLocalizedMessage().indexOf("src-resolve.4.2") > -1)  {
                 //Ignore schema resolve error and do nothing
             } else {
+                //e.printStackTrace();
                 throw new ToolException("Schema Error : " + e.getLocalizedMessage(), e);
             }
         }
@@ -997,7 +1074,7 @@ public class JAXBDataBinding implements DataBindingProfile {
                     //no accessors :-(
                     try {
                         Field f = jdc.getClass().getDeclaredField("enumConstantsByName");
-                        f.setAccessible(true);
+                        ReflectionUtil.setAccessible(f);
                         Map<?, ?> map = (Map<?, ?>)f.get(jdc);
                         Set<String> values = CastUtils.cast(map.keySet());
                         String first = defaultValues.chooseEnumValue(path, values);
@@ -1023,7 +1100,7 @@ public class JAXBDataBinding implements DataBindingProfile {
                 JType tp2 = tp.erasure();
                 try {
                     Field f = tp2.getClass().getDeclaredField("_class");
-                    f.setAccessible(true);
+                    ReflectionUtil.setAccessible(f);
                     Class<?> cls = (Class<?>)f.get(tp2);
                     if (List.class.isAssignableFrom(cls)) {
                         found = true;
@@ -1033,7 +1110,7 @@ public class JAXBDataBinding implements DataBindingProfile {
                         writer.write("();");
 
                         f = tp.getClass().getDeclaredField("args");
-                        f.setAccessible(true);
+                        ReflectionUtil.setAccessible(f);
                         List<JClass> lcl = CastUtils.cast((List<?>)f.get(tp));
                         JClass cl = lcl.get(0);
 

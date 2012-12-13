@@ -22,10 +22,14 @@ import java.beans.PropertyDescriptor;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
 import java.lang.reflect.WildcardType;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.xml.namespace.QName;
 
@@ -37,8 +41,11 @@ import org.apache.cxf.aegis.type.TypeUtil;
 import org.apache.cxf.aegis.type.basic.BeanType;
 import org.apache.cxf.aegis.util.NamespaceHelper;
 import org.apache.cxf.aegis.util.ServiceUtils;
+import org.apache.cxf.common.logging.LogUtils;
 
 public class Java5TypeCreator extends AbstractTypeCreator {
+    private static final Logger LOG = LogUtils.getL7dLogger(Java5TypeCreator.class);
+    
     private AnnotationReader annotationReader;
 
     public Java5TypeCreator() {
@@ -140,20 +147,42 @@ public class Java5TypeCreator extends AbstractTypeCreator {
 
     // should be called 'collection'
     protected AegisType getOrCreateGenericType(TypeClassInfo info) {
-        return getOrCreateParameterizedType(info.getType(), 0);
+        return getOrCreateParameterizedType(info, 0, false);
     }
 
     protected AegisType getOrCreateMapKeyType(TypeClassInfo info) {
-        return getOrCreateParameterizedType(info.getType(), 0);
+        return getOrCreateParameterizedType(info, 0, true);
     }
 
     protected AegisType getOrCreateMapValueType(TypeClassInfo info) {
-        return getOrCreateParameterizedType(info.getType(), 1);
+        return getOrCreateParameterizedType(info, 1, true);
     }
 
-    protected AegisType getOrCreateParameterizedType(Type generic, int index) {
-        Type paramType = getComponentType(generic, index);
+    protected AegisType getOrCreateParameterizedType(TypeClassInfo generic, int index, boolean map) {
+        Type paramType;
+        Map<String, Type> pm = generic.getTypeVars();
+        if (map) {
+            if (pm == null) {
+                pm = new HashMap<String, Type>();
+            } else {
+                pm = new HashMap<String, Type>(pm);
+            }
+            paramType = getComponentTypeForMap(generic.getType(), pm, index == 0);
+        } else {
+            paramType = getComponentType(generic.getType(), index);
+        }
 
+        if (paramType instanceof WildcardType) {
+            WildcardType wct = (WildcardType)paramType;
+            paramType = wct.getUpperBounds()[0];
+        }
+        if (paramType instanceof TypeVariable) {
+            TypeVariable<?> v = (TypeVariable<?>)paramType;
+            LOG.log(Level.WARNING,
+                    "Could not map TypeVariable named {0} from {1} with initial mapping {2} to "
+                    + "a known class.  Using Object.",
+                    new Object[] {v.getName(), generic.getType().toString(), generic.getTypeVars()});
+        }
         if (paramType == null) {
             return createObjectType();
         }
@@ -173,7 +202,7 @@ public class Java5TypeCreator extends AbstractTypeCreator {
         
         TypeClassInfo info = createBasicClassInfo(clazz);
         info.setDescription(clazz.toString());
-        info.setType(paramType); 
+        info.setType(paramType, paramType instanceof ParameterizedType ? pm : null); 
 
         AegisType type = createTypeForClass(info);
 
@@ -196,6 +225,58 @@ public class Java5TypeCreator extends AbstractTypeCreator {
             return null;
         }
     }
+
+    protected Type getComponentTypeForMap(Type genericType, Map<String, Type> pm, boolean key) {
+        if (pm == null) {
+            pm = new HashMap<String, Type>();
+        }
+        return findMapGenericTypes(genericType, pm, key);
+    }
+    
+    
+    private Type findMapGenericTypes(Type cls, Map<String, Type> pm, boolean key) {
+        if (cls == null) {
+            return null;
+        }
+        if (cls instanceof ParameterizedType) {
+            ParameterizedType pt = (ParameterizedType)cls;
+            Type types[] = pt.getActualTypeArguments();
+            TypeVariable<?>[] params = ((Class<?>)pt.getRawType()).getTypeParameters();
+            for (int x = 0; x < types.length; x++) {
+                Type type = types[x];
+                if (type instanceof TypeVariable) {
+                    TypeVariable<?> tv = (TypeVariable<?>)types[x];
+                    if (pm.containsKey(tv.getName())) {
+                        type = pm.get(tv.getName());
+                        types[x] = type;
+                    }
+                }
+                pm.put(params[x].getName(), type);
+            }
+            if (Map.class.equals(pt.getRawType())) {
+                return types[key ? 0 : 1];
+            }
+            return findMapGenericTypes((Class<?>)pt.getRawType(), pm, key);
+        } else if (cls instanceof Class) {
+            Class<?> c = (Class<?>)cls;
+            if (Map.class.isAssignableFrom(c)) {
+                
+                for (Type tp : c.getGenericInterfaces()) {
+                    Map<String, Type> cp = new HashMap<String, Type>(pm);
+
+                    Type types = findMapGenericTypes(tp, cp, key);
+                    if (types != null) {
+                        pm.putAll(cp);
+                        return types;
+                    }
+                }
+                if (c.getSuperclass() != null && Map.class.isAssignableFrom(c.getSuperclass())) {
+                    return findMapGenericTypes(c.getGenericSuperclass(), pm, key);
+                }
+            } 
+        }
+        return null;
+    }    
 
     @Override
     public AegisType createDefaultType(TypeClassInfo info) {

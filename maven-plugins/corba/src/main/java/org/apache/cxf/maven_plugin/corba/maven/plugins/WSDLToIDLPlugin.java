@@ -21,7 +21,6 @@ package org.apache.cxf.maven_plugin.corba.maven.plugins;
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -29,6 +28,7 @@ import java.util.Map;
 
 import org.apache.cxf.Bus;
 import org.apache.cxf.BusFactory;
+import org.apache.cxf.common.classloader.ClassLoaderUtils;
 import org.apache.cxf.helpers.CastUtils;
 import org.apache.cxf.tools.corba.WSDLToIDL;
 
@@ -71,12 +71,17 @@ public class WSDLToIDLPlugin extends AbstractMojo {
     boolean useCompileClasspath;
 
     public void execute() throws MojoExecutionException {
-        outputDir.mkdirs();
-        
+        if (outputDir == null) {
+            throw new MojoExecutionException("The outputDir must be specified");
+        }
+        if (project == null) {
+            throw new MojoExecutionException("The project must be specified");
+        }
         if (wsdltoidlOptions == null) {
             throw new MojoExecutionException("Please specify the wsdltoidl options");
         }
 
+        outputDir.mkdirs();
         
         List<URL> urlList = new ArrayList<URL>();
         StringBuilder buf = new StringBuilder();
@@ -107,8 +112,7 @@ public class WSDLToIDLPlugin extends AbstractMojo {
         }
         
         ClassLoader origContext = Thread.currentThread().getContextClassLoader();
-        URLClassLoader loader = new URLClassLoader(urlList.toArray(new URL[urlList.size()]),
-                                                   origContext);
+        ClassLoader loader = ClassLoaderUtils.getURLClassLoader(urlList, origContext);
         String newCp = buf.toString();
 
         //with some VM's, creating an XML parser (which we will do to parse wsdls)

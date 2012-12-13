@@ -45,11 +45,19 @@ public final class WadlToolConstants {
     public static final String CFG_BINDING = ToolConstants.CFG_BINDING;
     
     public static final String CFG_NO_TYPES = ToolConstants.CFG_NO_TYPES;
+    public static final String CFG_NO_VOID_FOR_EMPTY_RESPONSES = "noVoidForEmptyResponses";
     public static final String CFG_NO_ADDRESS_BINDING = ToolConstants.CFG_NO_ADDRESS_BINDING;
     
     public static final String CFG_WADL_NAMESPACE = "wadlNamespace";
     public static final String CFG_GENERATE_ENUMS = "generateEnums";
     public static final String CFG_INHERIT_PARAMS = "inheritResourceParams";
+    
+    // JAX-RS 2.0 @Suspended AsyncResponse
+    public static final String CFG_SUSPENDED_ASYNC = "async";
+    
+    // CXF @UseAsyncMethod - equivalent of the proposed @ManagedAsync which
+    // which did not make it into JAX-RS 2.0
+    //public static final String CFG_MANAGED_ASYNC = "managedAsync";
     
     public static final String CFG_WADLURL = "wadl";
     

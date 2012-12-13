@@ -21,12 +21,14 @@ package org.apache.cxf.jaxrs.utils.multipart;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.ResourceBundle;
 import java.util.logging.Logger;
 
-import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.BadRequestException;
+import javax.ws.rs.NotSupportedException;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedMap;
 
@@ -97,8 +99,7 @@ public final class AttachmentUtils {
                                 attachmentMaxSize).getAllAttachments();
     }
     
-    public static Attachment getMultipart(Class<Object> c, 
-                                          Multipart id, 
+    public static Attachment getMultipart(Multipart id, 
                                           MediaType mt, 
                                           List<Attachment> infos) throws IOException {
         
@@ -116,14 +117,28 @@ public final class AttachmentUtils {
                                                            id.value(),
                                                            mt.toString());
                 LOG.warning(errorMsg.toString());
-                throw new WebApplicationException(
-                          new MultipartReadException(id.value(), id.type(), errorMsg.toString()), 400);
+                throw new BadRequestException(
+                          new MultipartReadException(id.value(), id.type(), errorMsg.toString()));
             } else {
                 return null;
             }
         }
         
         return infos.size() > 0 ? infos.get(0) : null; 
+    }
+    
+    public static List<Attachment> getAllMultiparts(Multipart id, 
+                                              MediaType mt, 
+                                              List<Attachment> infos) throws IOException {
+    
+        List<Attachment> all = new LinkedList<Attachment>();
+        for (Attachment a : infos) {
+            if (matchAttachmentId(a, id, mt)) {
+                checkMediaTypes(a.getContentType(), id.type());
+                all.add(a);    
+            }
+        }
+        return all;
     }
     
     private static boolean matchAttachmentId(Attachment at, Multipart mid, MediaType multipartType) {
@@ -161,7 +176,7 @@ public final class AttachmentUtils {
     
     private static void checkMediaTypes(MediaType mt1, String mt2) {
         if (!mt1.isCompatible(MediaType.valueOf(mt2))) {                                            
-            throw new WebApplicationException(415);
+            throw new NotSupportedException();
         }
     }
 }

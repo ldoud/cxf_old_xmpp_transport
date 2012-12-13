@@ -26,10 +26,12 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
+import javax.ws.rs.Produces;
 import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.container.CompletionCallback;
 import javax.ws.rs.container.TimeoutHandler;
@@ -47,16 +49,37 @@ public class BookContinuationStore {
     
     @GET
     @Path("/books/defaulttimeout")
-    public void getBookDescriptionWithHandler(AsyncResponse async) {
-        async.register(new CompletionCallbackImpl());
+    public void getBookDescriptionWithTimeout(AsyncResponse async) {
+        async.register(new CallbackImpl());
         async.setTimeout(2000, TimeUnit.MILLISECONDS);
+    }
+    
+    @GET
+    @Path("/books/resume")
+    @Produces("text/plain")
+    public void getBookDescriptionImmediateResume(AsyncResponse async) {
+        async.resume("immediateResume");
+    }
+    
+    @GET
+    @Path("/books/cancel")
+    public void getBookDescriptionWithCancel(@PathParam("id") String id, AsyncResponse async) {
+        async.setTimeout(2000, TimeUnit.MILLISECONDS);
+        async.setTimeoutHandler(new CancelTimeoutHandlerImpl());
     }
     
     @GET
     @Path("/books/timeouthandler/{id}")
     public void getBookDescriptionWithHandler(@PathParam("id") String id, AsyncResponse async) {
-        async.setTimeout(2000, TimeUnit.MILLISECONDS);
-        async.setTimeoutHandler(new TimeoutHandlerImpl(id));
+        async.setTimeout(1000, TimeUnit.MILLISECONDS);
+        async.setTimeoutHandler(new TimeoutHandlerImpl(id, false));
+    }
+    
+    @GET
+    @Path("/books/timeouthandlerresume/{id}")
+    public void getBookDescriptionWithHandlerResumeOnly(@PathParam("id") String id, AsyncResponse async) {
+        async.setTimeout(1000, TimeUnit.MILLISECONDS);
+        async.setTimeoutHandler(new TimeoutHandlerImpl(id, true));
     }
     
     @GET
@@ -104,32 +127,47 @@ public class BookContinuationStore {
     }
      
     private class TimeoutHandlerImpl implements TimeoutHandler {
-
+        private boolean resumeOnly;
         private String id;
+        private AtomicInteger timeoutExtendedCounter = new AtomicInteger();
         
-        public TimeoutHandlerImpl(String id) {
+        public TimeoutHandlerImpl(String id, boolean resumeOnly) {
             this.id = id;
+            this.resumeOnly = resumeOnly;
         }
         
         @Override
         public void handleTimeout(AsyncResponse asyncResponse) {
-            asyncResponse.resume(books.get(id));
+            if (!resumeOnly && timeoutExtendedCounter.addAndGet(1) <= 2) {
+                asyncResponse.setTimeout(1, TimeUnit.SECONDS);
+            } else {
+                asyncResponse.resume(books.get(id));
+            }
         }
         
     }
     
-    private class CompletionCallbackImpl implements CompletionCallback {
+    private class CancelTimeoutHandlerImpl implements TimeoutHandler {
+
+        @Override
+        public void handleTimeout(AsyncResponse asyncResponse) {
+            asyncResponse.cancel(10);
+            
+        }
+        
+    }
+    
+    private class CallbackImpl implements CompletionCallback {
 
         @Override
         public void onComplete() {
-            System.out.println("CompletionCallbackImpl: onComplete");
+            System.out.println("CompletionCallback: onComplete");
             
         }
 
         @Override
         public void onError(Throwable throwable) {
-            // TODO Auto-generated method stub
-            
+            System.out.println("CompletionCallback: onError");
         }
         
     }

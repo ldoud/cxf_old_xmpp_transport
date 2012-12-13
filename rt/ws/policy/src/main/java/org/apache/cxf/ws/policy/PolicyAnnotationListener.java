@@ -25,9 +25,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.wsdl.extensions.UnknownExtensibilityElement;
 import javax.xml.stream.XMLStreamException;
+import javax.xml.stream.XMLStreamReader;
 
 import org.w3c.dom.Attr;
 import org.w3c.dom.Document;
@@ -38,6 +41,7 @@ import org.xml.sax.InputSource;
 import org.apache.cxf.Bus;
 import org.apache.cxf.annotations.Policies;
 import org.apache.cxf.annotations.Policy;
+import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.common.util.StringUtils;
 import org.apache.cxf.configuration.ConfiguredBeanLocator;
 import org.apache.cxf.endpoint.Endpoint;
@@ -63,6 +67,7 @@ import org.apache.neethi.Constants;
  * 
  */
 public class PolicyAnnotationListener implements FactoryBeanListener {
+    private static final Logger LOG = LogUtils.getL7dLogger(PolicyAnnotationListener.class);
     private static final String EXTRA_POLICIES = PolicyAnnotationListener.class.getName() + ".EXTRA_POLICIES";
     
     private Bus bus;
@@ -421,12 +426,12 @@ public class PolicyAnnotationListener implements FactoryBeanListener {
         if (null == src) {
             return null;
         }
-        
+        XMLStreamReader reader = null;
         try {
-            Document doc = StaxUtils.read(StaxUtils.createXMLStreamReader(src));
+            reader = StaxUtils.createXMLStreamReader(src);
+            Document doc = StaxUtils.read(reader);
             uri = getPolicyId(doc.getDocumentElement());
             if (StringUtils.isEmpty(uri)) {
-                uri = defName; 
                 Attr att = doc.createAttributeNS(PolicyConstants.WSU_NAMESPACE_URI,
                                                  "wsu:" + PolicyConstants.WSU_ID_ATTR_NAME);
                 att.setNodeValue(defName);
@@ -435,7 +440,10 @@ public class PolicyAnnotationListener implements FactoryBeanListener {
             
             return doc.getDocumentElement();
         } catch (XMLStreamException e) {
+            LOG.log(Level.WARNING, e.getMessage());
             return null;
+        } finally {
+            StaxUtils.close(reader);
         }
     }
     

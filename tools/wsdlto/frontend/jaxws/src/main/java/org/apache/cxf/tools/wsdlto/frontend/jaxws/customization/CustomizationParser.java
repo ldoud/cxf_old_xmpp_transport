@@ -101,7 +101,7 @@ public final class CustomizationParser {
             if (wsdlNode == null) {
                 throw new ToolException(new Message("MISSING_WSDL", LOG, wsdlURL));
             }
-            customizedElements.put(wsdlURL.toString(), wsdlNode);
+            customizedElements.put(wsdlURL, wsdlNode);
             bindingFiles = (String[])env.get(ToolConstants.CFG_BINDING);
             if (bindingFiles == null) {
                 return;
@@ -154,13 +154,15 @@ public final class CustomizationParser {
             return null;
         }
         
+        XMLStreamReader reader = null;
         try {
-            XMLStreamReader reader = StaxUtils.createXMLStreamReader(uri, ins);
+            reader = StaxUtils.createXMLStreamReader(uri, ins);
             doc = StaxUtils.read(reader, true);
         } catch (Exception e) {
             Message msg = new Message("CAN_NOT_READ_AS_ELEMENT", LOG, new Object[] {uri});
             throw new ToolException(msg, e);
         } finally {
+            StaxUtils.close(reader);
             try {
                 ins.close();
             } catch (IOException ex) {
@@ -439,7 +441,9 @@ public final class CustomizationParser {
             elem = DOMUtils.getNextElement(elem);       
         }
 
-        firstChild.appendChild(cloneNode);
+        if (firstChild != null) {
+            firstChild.appendChild(cloneNode);
+        }
     }
 
     private boolean isGlobaleBindings(Element binding) {
@@ -478,14 +482,17 @@ public final class CustomizationParser {
     private void addBinding(String bindingFile) throws XMLStreamException {
 
         Element root = null;
+        XMLStreamReader xmlReader = null;
         try {
             URIResolver resolver = new URIResolver(bindingFile);
-            XMLStreamReader reader = StaxUtils.createXMLStreamReader(resolver.getURI().toString(), 
+            xmlReader = StaxUtils.createXMLStreamReader(resolver.getURI().toString(), 
                                                                      resolver.getInputStream());
-            root = StaxUtils.read(reader, true).getDocumentElement();
+            root = StaxUtils.read(xmlReader, true).getDocumentElement();
         } catch (Exception e1) {
             Message msg = new Message("CAN_NOT_READ_AS_ELEMENT", LOG, new Object[] {bindingFile});
             throw new ToolException(msg, e1);
+        } finally {
+            StaxUtils.close(xmlReader);
         }
         XMLStreamReader reader = StaxUtils.createXMLStreamReader(root);
         StaxUtils.toNextTag(reader);
@@ -498,7 +505,7 @@ public final class CustomizationParser {
                 targetNode = getTargetNode(wsdlURI);
                 String resolvedLoc = wsdlURI;
                 if (targetNode == null && env.get(ToolConstants.CFG_CATALOG) != null) {
-                    resolvedLoc = resolveByCatalog(wsdlURI.toString());
+                    resolvedLoc = resolveByCatalog(wsdlURI);
                     targetNode = getTargetNode(resolvedLoc);
                 }
                 if (targetNode == null) {

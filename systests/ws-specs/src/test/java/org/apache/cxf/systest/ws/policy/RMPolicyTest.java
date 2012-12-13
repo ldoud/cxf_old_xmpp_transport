@@ -19,6 +19,7 @@
 
 package org.apache.cxf.systest.ws.policy;
 
+import java.io.Closeable;
 import java.util.logging.Logger;
 
 import javax.xml.ws.Endpoint;
@@ -37,6 +38,7 @@ import org.apache.cxf.systest.ws.util.ConnectionHelper;
 import org.apache.cxf.systest.ws.util.MessageFlow;
 import org.apache.cxf.testutil.common.AbstractBusClientServerTestBase;
 import org.apache.cxf.testutil.common.AbstractBusTestServerBase;
+import org.apache.cxf.testutil.common.TestUtil;
 import org.apache.cxf.testutil.recorders.InMessageRecorder;
 import org.apache.cxf.testutil.recorders.MessageRecorder;
 import org.apache.cxf.testutil.recorders.OutMessageRecorder;
@@ -54,7 +56,6 @@ import org.junit.Test;
 public class RMPolicyTest extends AbstractBusClientServerTestBase {
     public static final String PORT = allocatePort(Server.class);
     public static final String TEMPDIR = FileUtils.getDefaultTempDir().toURI().toString(); 
-    public static final String DECOUPLED = allocatePort("decoupled");
 
     private static final Logger LOG = LogUtils.getLogger(RMPolicyTest.class);
     private static final String GREETMEONEWAY_ACTION 
@@ -71,6 +72,7 @@ public class RMPolicyTest extends AbstractBusClientServerTestBase {
 
     public static class Server extends AbstractBusTestServerBase {
         String tmpDir = TEMPDIR;
+        Endpoint ep;
         public Server() {
         }
         public Server(String dir) {
@@ -81,6 +83,7 @@ public class RMPolicyTest extends AbstractBusClientServerTestBase {
             SpringBusFactory bf = new SpringBusFactory();
             Bus bus = bf.createBus("org/apache/cxf/systest/ws/policy/rm.xml");
             BusFactory.setDefaultBus(bus);
+            setBus(bus);
             LoggingInInterceptor in = new LoggingInInterceptor();
             bus.getInInterceptors().add(in);
             LoggingOutInterceptor out = new LoggingOutInterceptor();
@@ -89,10 +92,13 @@ public class RMPolicyTest extends AbstractBusClientServerTestBase {
             
             GreeterImpl implementor = new GreeterImpl();
             String address = "http://localhost:" + PORT + "/SoapContext/GreeterPort";
-            Endpoint.publish(address, implementor);
+            ep = Endpoint.publish(address, implementor);
             LOG.info("Published greeter endpoint.");
         }
-        
+        public void tearDown() {
+            ep.stop();
+            ep = null;
+        }
 
         public static void main(String[] args) {
             try { 
@@ -112,6 +118,7 @@ public class RMPolicyTest extends AbstractBusClientServerTestBase {
 
     @BeforeClass
     public static void startServers() throws Exception {
+        TestUtil.getNewPortNumber("decoupled");
         PolicyTestHelper.updatePolicyRef("rm-external.xml", ":9020", ":" + PORT);
         System.setProperty("temp.location", TEMPDIR);
 
@@ -192,6 +199,7 @@ public class RMPolicyTest extends AbstractBusClientServerTestBase {
         mf.verifyMessageNumbers(new String[] {null, "1", "2", "3"}, false);
         mf.verifyLastMessage(new boolean[] {false, false, false, false}, false);
         mf.verifyAcknowledgements(new boolean[] {false, true, true, true}, false);
-         
+        ((Closeable)greeter).close();
+
     }
 }

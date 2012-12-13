@@ -392,6 +392,27 @@ public class WebClient extends AbstractClient {
     }
     
     /**
+     * Does HTTP PUT invocation and returns typed response object
+     * @param body request body, can be null
+     * @param responseClass expected type of response object
+     * @return typed object, can be null. Response status code and headers 
+     *         can be obtained too, see Client.getResponse()
+     */
+    public <T> T put(Object body, Class<T> responseClass) {
+        return invoke("PUT", body, responseClass);
+    }
+    
+    /**
+     * Does HTTP Async PUT invocation and returns Future.
+     * Shortcut for async().put(Entity, InvocationCallback)
+     * @param callback invocation callback 
+     * @return the future
+     */
+    public <T> Future<T> put(Object body, InvocationCallback<T> callback) {
+        return doInvokeAsyncCallback("PUT", body, body.getClass(), getClass(), callback);
+    }
+    
+    /**
      * Does HTTP invocation and returns a collection of typed objects 
      * @param httpMethod HTTP method 
      * @param body request body, can be null
@@ -506,7 +527,7 @@ public class WebClient extends AbstractClient {
      * @return updated WebClient
      */
     public WebClient path(Object path) {
-        getCurrentBuilder().path(path.toString());
+        getCurrentBuilder().path(convertParamValue(path));
         
         return this;
     }
@@ -530,12 +551,7 @@ public class WebClient extends AbstractClient {
      * @return updated WebClient
      */
     public WebClient query(String name, Object ...values) {
-        if (!"".equals(name)) {
-            getCurrentBuilder().queryParam(name, values);
-        } else {
-            addParametersToBuilder(getCurrentBuilder(), name, values[0], ParameterType.QUERY);
-        }
-        
+        addMatrixQueryParamsToBuilder(getCurrentBuilder(), name, ParameterType.QUERY, values);
         return this;
     }
     
@@ -546,12 +562,7 @@ public class WebClient extends AbstractClient {
      * @return updated WebClient
      */
     public WebClient matrix(String name, Object ...values) {
-        if (!"".equals(name)) {
-            getCurrentBuilder().matrixParam(name, values);
-        } else {
-            addParametersToBuilder(getCurrentBuilder(), name, values[0], ParameterType.MATRIX);
-        }
-        
+        addMatrixQueryParamsToBuilder(getCurrentBuilder(), name, ParameterType.MATRIX, values);
         return this;
     }
     

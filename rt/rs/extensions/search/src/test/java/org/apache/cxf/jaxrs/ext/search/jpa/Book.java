@@ -18,19 +18,84 @@
  */
 package org.apache.cxf.jaxrs.ext.search.jpa;
 
+import java.util.LinkedList;
+import java.util.List;
+
+import javax.persistence.ElementCollection;
+import javax.persistence.Embedded;
 import javax.persistence.Entity;
 import javax.persistence.Id;
+import javax.persistence.ManyToOne;
+import javax.persistence.OneToMany;
 
 @Entity(name = "Book")
 public class Book {
-    @Id
     private int id;
-
+    private String title;
+    private OwnerAddress address;
+    private OwnerInfo ownerInfo;
+    private Library library;
+    private List<BookReview> reviews = new LinkedList<BookReview>();
+    private List<String> authors = new LinkedList<String>();
+    
+    @Id
     public int getId() {
         return id;
     }
 
     public void setId(int id) {
         this.id = id;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String name) {
+        this.title = name;
+    }
+
+    @Embedded
+    public OwnerAddress getAddress() {
+        return address;
+    }
+
+    public void setAddress(OwnerAddress address) {
+        this.address = address;
+    }
+
+    public OwnerInfo getOwnerInfo() {
+        return ownerInfo;
+    }
+
+    public void setOwnerInfo(OwnerInfo ownerInfo) {
+        this.ownerInfo = ownerInfo;
+    }
+
+    @ManyToOne
+    public Library getLibrary() {
+        return library;
+    }
+
+    public void setLibrary(Library library) {
+        this.library = library;
+    }
+
+    @OneToMany
+    public List<BookReview> getReviews() {
+        return reviews;
+    }
+
+    public void setReviews(List<BookReview> reviews) {
+        this.reviews = reviews;
+    }
+
+    @ElementCollection
+    public List<String> getAuthors() {
+        return authors;
+    }
+
+    public void setAuthors(List<String> authors) {
+        this.authors = authors;
     }
 }

@@ -423,7 +423,6 @@ public class VersionTransformer {
      * Parse an EndpointReferenceType from a DOM element.  Handles all of
      * the WS-Addressing namespaces currently supported.
      * @param ref
-     * @return
      * @throws JAXBException
      */
     public static EndpointReferenceType parseEndpointReference(Element ref) throws JAXBException {
@@ -439,18 +438,17 @@ public class VersionTransformer {
             return null;
         }
         JAXBContext ctx = getExposedJAXBContext(tns);
-        Object o = ctx.createUnmarshaller().unmarshal(ref, getExposedReferenceType(tns));
-        if (o instanceof JAXBElement) {
-            o = ((JAXBElement<?>)o).getValue();
+        JAXBElement<?> o = ctx.createUnmarshaller().unmarshal(ref, getExposedReferenceType(tns));
+        if (o != null) {
+            return convertToNative(o.getValue());
         }
-        return convertToNative(o);
+        return convertToNative(null);
         
     }
     /**
      * Converts a version specific EndpointReferenceType to the native version
      * used internally by CXF
      * @param exposed
-     * @return
      */
     public static EndpointReferenceType convertToNative(Object exposed) {
         if (EndpointReferenceType.class.isInstance(exposed)) {
@@ -467,7 +465,6 @@ public class VersionTransformer {
      * Gets the Class representing the EndpointReferenceType that is used
      * for the specific WS-Addressing version
      * @param exposedURI
-     * @return
      */
     public static Class<?> getExposedReferenceType(String exposedURI) {
         return NATIVE_VERSION.equals(exposedURI)

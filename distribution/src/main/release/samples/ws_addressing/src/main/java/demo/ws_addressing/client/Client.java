@@ -63,13 +63,13 @@ public final class Client {
             URL wsdlURL;
             File wsdlFile = new File(args[0]);
             if (wsdlFile.exists()) {
-                wsdlURL = wsdlFile.toURL();
+                wsdlURL = wsdlFile.toURI().toURL();
             } else {
                 wsdlURL = new URL(args[0]);
             }
 
             SpringBusFactory bf = new SpringBusFactory();
-            URL busFile = Client.class.getResource("client.xml");
+            URL busFile = Client.class.getResource("/client.xml");
             Bus bus = bf.createBus(busFile.toString());
             BusFactory.setDefaultBus(bus);
 

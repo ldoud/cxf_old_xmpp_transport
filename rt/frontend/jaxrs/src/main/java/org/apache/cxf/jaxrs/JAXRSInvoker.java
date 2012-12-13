@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.ResourceBundle;
 import java.util.logging.Logger;
 
+import javax.ws.rs.NotFoundException;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.core.Application;
@@ -82,23 +83,9 @@ public class JAXRSInvoker extends AbstractInvoker {
             AsyncResponse asyncResp = exchange.get(AsyncResponse.class);
             if (asyncResp != null) {
                 AsyncResponseImpl asyncImpl = (AsyncResponseImpl)asyncResp;
-                
-                if (asyncImpl.isResumedByApplication()) {
-                    Object asyncObj = asyncImpl.getResponseObject();
-                    if (asyncObj instanceof Throwable) {
-                        return handleFault(new Fault((Throwable)asyncObj), 
-                                           exchange.getInMessage(), null, null);    
-                    } else if (!(asyncObj instanceof Response)) {
-                        response = Response.ok().entity(asyncObj).build();
-                    } else {
-                        response = (Response)asyncObj;
-                    }
-                } else if (asyncImpl.handleTimeout()) {
-                    return null;
-                } else {
-                    return handleFault(new Fault(new WebApplicationException(503)), 
-                                       exchange.getInMessage(), null, null);
-                }
+                asyncImpl.prepareContinuation();
+                asyncImpl.handleTimeout();
+                return handleAsyncResponse(exchange, asyncImpl.getResponseObject());
             }
         }
         if (response != null) {
@@ -131,6 +118,15 @@ public class JAXRSInvoker extends AbstractInvoker {
         }
     }
 
+    private Object handleAsyncResponse(Exchange exchange, Object asyncObj) {
+        if (asyncObj instanceof Throwable) {
+            return handleFault(new Fault((Throwable)asyncObj), 
+                               exchange.getInMessage(), null, null);    
+        } else {
+            return new MessageContentsList(asyncObj);
+        }
+    }
+    
     private void persistRoots(Exchange exchange, Object rootInstance, Object provider) {
         exchange.put(JAXRSUtils.ROOT_INSTANCE, rootInstance);
         exchange.put(JAXRSUtils.ROOT_PROVIDER, provider);
@@ -195,13 +191,18 @@ public class JAXRSInvoker extends AbstractInvoker {
                 contextLoader = ClassLoaderUtils
                     .setThreadContextClassloader(resourceObject.getClass().getClassLoader());
             }
-            AsyncResponse asyncResponse = inMessage.get(AsyncResponse.class);
-            if (asyncResponse != null) {
-                inMessage.put(AsyncResponse.class, null);
-                AsyncResponseImpl asyncImpl = (AsyncResponseImpl)asyncResponse;
-                asyncImpl.suspend();
+            AsyncResponseImpl asyncResponse = null;
+            if (!ori.isSubResourceLocator()) {
+                asyncResponse = (AsyncResponseImpl)inMessage.get(AsyncResponse.class);
             }
             result = invoke(exchange, resourceObject, methodToInvoke, params);
+            if (asyncResponse != null) {
+                if (!asyncResponse.isSuspended() && !asyncResponse.isResumedByApplication()) {
+                    asyncResponse.suspendContinuation();
+                } else {
+                    result = handleAsyncResponse(exchange, asyncResponse.getResponseObject());
+                }
+            }
         } catch (Fault ex) {
             return handleFault(ex, inMessage, cri, methodToInvoke);
         } finally {
@@ -226,16 +227,15 @@ public class JAXRSInvoker extends AbstractInvoker {
 
                 result = checkResultObject(result, subResourcePath);
 
-                subCri = cri.getSubResource(
-                     methodToInvoke.getReturnType(),
-                     ClassHelper.getRealClass(result));
+                subCri = cri.getSubResource(methodToInvoke.getReturnType(),
+                    ClassHelper.getRealClass(result));
                 if (subCri == null) {
                     org.apache.cxf.common.i18n.Message errorM =
                         new org.apache.cxf.common.i18n.Message("NO_SUBRESOURCE_FOUND",
                                                                BUNDLE,
                                                                subResourcePath);
                     LOG.severe(errorM.toString());
-                    throw new WebApplicationException(404);
+                    throw new NotFoundException();
                 }
 
                 OperationResourceInfo subOri = JAXRSUtils.findTargetMethod(subCri,
@@ -256,8 +256,7 @@ public class JAXRSInvoker extends AbstractInvoker {
             } catch (IOException ex) {
                 Response resp = JAXRSUtils.convertFaultToResponse(ex, exchange.getInMessage());
                 if (resp == null) {
-                    resp = JAXRSUtils.convertFaultToResponse(new WebApplicationException(ex), 
-                                                             exchange.getInMessage());
+                    resp = JAXRSUtils.convertFaultToResponse(ex, exchange.getInMessage());
                 }
                 return new MessageContentsList(resp);
             } catch (WebApplicationException ex) {
@@ -374,7 +373,7 @@ public class JAXRSInvoker extends AbstractInvoker {
                                                        BUNDLE,
                                                        subResourcePath);
             LOG.info(errorM.toString());
-            throw new WebApplicationException(404);
+            throw new NotFoundException();
         }
 
         return result;

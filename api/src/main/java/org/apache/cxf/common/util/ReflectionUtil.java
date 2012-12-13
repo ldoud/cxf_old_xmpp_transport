@@ -184,7 +184,6 @@ public final class ReflectionUtil {
      * @param beanInfo Bean in question
      * @param beanClass class for bean in question
      * @param propertyDescriptors raw descriptors
-     * @return 
      */
     public static PropertyDescriptor[] getPropertyDescriptorsAvoidSunBug(Class<?> refClass, 
                                                                   BeanInfo beanInfo,
@@ -203,17 +202,17 @@ public final class ReflectionUtil {
         }
         
         if (springBeanUtilsDescriptorFetcher != null) {
-            PropertyDescriptor[] descriptors = null;
             if (propertyDescriptors != null) {
-                descriptors = new PropertyDescriptor[propertyDescriptors.length];
+                List<PropertyDescriptor> descriptors = new ArrayList<PropertyDescriptor>(propertyDescriptors.length);
                 for (int i = 0; i < propertyDescriptors.length; i++) {
                     PropertyDescriptor propertyDescriptor = propertyDescriptors[i];
                     try {
-                        descriptors[i] = 
-                            (PropertyDescriptor)
-                            springBeanUtilsDescriptorFetcher.invoke(null,
-                                                                    beanClass, 
-                                                                    propertyDescriptor.getName());
+                        propertyDescriptor = (PropertyDescriptor)springBeanUtilsDescriptorFetcher.invoke(null,
+                                                                                     beanClass, 
+                                                                                     propertyDescriptor.getName());
+                        if (propertyDescriptor != null) {
+                            descriptors.add(propertyDescriptor);
+                        }
                     } catch (IllegalArgumentException e) {
                         throw new RuntimeException(e);
                     } catch (IllegalAccessException e) {
@@ -222,8 +221,9 @@ public final class ReflectionUtil {
                         throw new RuntimeException(e);
                     } 
                 }
+                return descriptors.toArray(new PropertyDescriptor[descriptors.size()]);
             }
-            return descriptors;
+            return null;
         } else {
             return beanInfo.getPropertyDescriptors();
         }
@@ -274,7 +274,6 @@ public final class ReflectionUtil {
      * 
      * @param m method to examine
      * @param annotationType the annotation type to look for.
-     * @return
      */
     public static <T extends Annotation> T getAnnotationForMethodOrContainingClass(Method m,
                                                                                    Class<T> annotationType) {

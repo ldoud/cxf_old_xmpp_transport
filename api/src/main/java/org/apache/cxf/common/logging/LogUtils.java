@@ -170,7 +170,7 @@ public final class LogUtils {
      * Get a Logger with an associated resource bundle.
      *
      * @param cls the Class to contain the Logger
-     * @param name the resource name
+     * @param resourcename the resource name
      * @return an appropriate Logger 
      */
     public static Logger getLogger(Class<?> cls, String resourcename) {
@@ -181,7 +181,7 @@ public final class LogUtils {
      * Get a Logger with an associated resource bundle.
      *
      * @param cls the Class to contain the Logger (to find resources)
-     * @param name the resource name
+     * @param resourcename the resource name
      * @param loggerName the full name for the logger
      * @return an appropriate Logger 
      */
@@ -205,7 +205,7 @@ public final class LogUtils {
      * Get a Logger with an associated resource bundle.
      *
      * @param cls the Class to contain the Logger
-     * @param name the resource name
+     * @param resourcename the resource name
      * @return an appropriate Logger 
      */
     public static Logger getL7dLogger(Class<?> cls, String resourcename) {
@@ -216,7 +216,7 @@ public final class LogUtils {
      * Get a Logger with an associated resource bundle.
      *
      * @param cls the Class to contain the Logger (to find resources)
-     * @param name the resource name
+     * @param resourcename the resource name
      * @param loggerName the full name for the logger
      * @return an appropriate Logger 
      */
@@ -232,42 +232,80 @@ public final class LogUtils {
     protected static Logger createLogger(Class<?> cls, 
                                          String name, 
                                          String loggerName) {
-        if (loggerClass != null) {
-            try {
-                Constructor<?> cns = loggerClass.getConstructor(String.class, String.class);
-                if (name == null) {
-                    try {
-                        return (Logger) cns.newInstance(loggerName, BundleUtils.getBundleName(cls));
-                    } catch (InvocationTargetException ite) {
-                        if (ite.getTargetException() instanceof MissingResourceException) {
-                            return (Logger) cns.newInstance(loggerName, null);
-                        } else {
-                            throw ite;
-                        }
-                    } 
-                } else {
-                    try {
-                        return (Logger) cns.newInstance(loggerName, BundleUtils.getBundleName(cls, name));
-                    } catch (InvocationTargetException ite) {
-                        if (ite.getTargetException() instanceof MissingResourceException) {
-                            throw (MissingResourceException)ite.getTargetException();
-                        } else {
-                            throw ite;
-                        }
-                    } 
-                }
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+        ClassLoader orig = Thread.currentThread().getContextClassLoader();
+        ClassLoader n = cls.getClassLoader();
+        if (n != null) {
+            Thread.currentThread().setContextClassLoader(n);
         }
-        if (name == null) {
-            try {
-                return Logger.getLogger(loggerName, BundleUtils.getBundleName(cls)); //NOPMD
-            } catch (MissingResourceException rex) {
-                return Logger.getLogger(loggerName, null); //NOPMD
+        String bundleName = name;
+        try {
+            Logger logger = null;
+            ResourceBundle b = null;
+            if (bundleName == null) {
+                //grab the bundle prior to the call to Logger.getLogger(...) so the 
+                //ResourceBundle can be loaded outside the big sync block that getLogger really is
+                bundleName = BundleUtils.getBundleName(cls);
+                try {
+                    b = BundleUtils.getBundle(cls);
+                } catch (MissingResourceException rex) {
+                    //ignore
+                }
+            } else {
+                bundleName = BundleUtils.getBundleName(cls, bundleName);
+                try {
+                    b = BundleUtils.getBundle(cls, bundleName);
+                } catch (MissingResourceException rex) {
+                    //ignore
+                }
             }
-        } else {
-            return Logger.getLogger(loggerName, BundleUtils.getBundleName(cls, name)); //NOPMD
+            if (b != null) {
+                b.getLocale();
+            }
+            
+            if (loggerClass != null) {
+                try {
+                    Constructor<?> cns = loggerClass.getConstructor(String.class, String.class);
+                    if (name == null) {
+                        try {
+                            return (Logger) cns.newInstance(loggerName, bundleName);
+                        } catch (InvocationTargetException ite) {
+                            if (ite.getTargetException() instanceof MissingResourceException) {
+                                return (Logger) cns.newInstance(loggerName, null);
+                            } else {
+                                throw ite;
+                            }
+                        } 
+                    } else {
+                        try {
+                            return (Logger) cns.newInstance(loggerName, bundleName);
+                        } catch (InvocationTargetException ite) {
+                            if (ite.getTargetException() instanceof MissingResourceException) {
+                                throw (MissingResourceException)ite.getTargetException();
+                            } else {
+                                throw ite;
+                            }
+                        } 
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+                
+            try {
+                logger = Logger.getLogger(loggerName, bundleName); //NOPMD
+            } catch (IllegalArgumentException iae) {
+                //likely a mismatch on the bundle name, just return the default
+                logger = Logger.getLogger(loggerName); //NOPMD
+            } catch (MissingResourceException rex) {
+                logger = Logger.getLogger(loggerName); //NOPMD
+            } finally {
+                b = null;
+            }
+            return logger;
+        } finally {
+            if (n != orig) {
+                Thread.currentThread().setContextClassLoader(orig);
+            }
         }
     }
 

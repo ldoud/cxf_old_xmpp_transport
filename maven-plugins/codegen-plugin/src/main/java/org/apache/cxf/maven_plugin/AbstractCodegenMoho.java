@@ -220,6 +220,20 @@ public abstract class AbstractCodegenMoho extends AbstractMojo {
     }
 
     public void execute() throws MojoExecutionException {
+        // add the generated source into compile source
+        // do this step first to ensure the source folder will be added to the Eclipse classpath
+        if (project != null && getGeneratedSourceRoot() != null) {
+            project.addCompileSourceRoot(getGeneratedSourceRoot().getAbsolutePath());
+        }
+        if (project != null && getGeneratedTestRoot() != null) {
+            project.addTestCompileSourceRoot(getGeneratedTestRoot().getAbsolutePath());
+        }
+
+        // if this is an m2e configuration build then return immediately without doing any work
+        if (project != null && buildContext.isIncremental() && !buildContext.hasDelta(project.getBasedir())) {
+            return;
+        }
+
         File classesDir = new File(classesDirectory);
         /*
          * This shouldn't be needed, but it's harmless.
@@ -272,13 +286,11 @@ public abstract class AbstractCodegenMoho extends AbstractMojo {
             classLoaderSwitcher.restoreClassLoader();
         }
 
-        // add the generated source into compile source
+        // refresh the generated sources
         if (project != null && getGeneratedSourceRoot() != null && getGeneratedSourceRoot().exists()) {
-            project.addCompileSourceRoot(getGeneratedSourceRoot().getAbsolutePath());
             buildContext.refresh(getGeneratedSourceRoot().getAbsoluteFile());
         }
         if (project != null && getGeneratedTestRoot() != null && getGeneratedTestRoot().exists()) {
-            project.addTestCompileSourceRoot(getGeneratedTestRoot().getAbsolutePath());
             buildContext.refresh(getGeneratedTestRoot().getAbsoluteFile());
         }
         System.gc();
@@ -422,7 +434,7 @@ public abstract class AbstractCodegenMoho extends AbstractMojo {
             URI wsdlURI = getWsdlURI(wsdlOption, basedir);
             File doneFile = getDoneFile(basedir, wsdlURI, getMarkerSuffix());
             try {
-                doneFile.createNewFile();
+                createMarkerFile(wsdlOption, doneFile, wsdlURI);
             } catch (Throwable e) {
                 getLog().warn("Could not create marker file " + doneFile.getAbsolutePath());
                 getLog().debug(e);
@@ -459,7 +471,7 @@ public abstract class AbstractCodegenMoho extends AbstractMojo {
         getLog().debug("Running code generation in fork mode with args " + Arrays.asList(args));
 
         Commandline cmd = new Commandline();
-        cmd.getShell().setQuotedArgumentsEnabled(false); // for JVM args
+        cmd.getShell().setQuotedArgumentsEnabled(true); // for JVM args
         cmd.setWorkingDirectory(project.getBuild().getDirectory());
         try {
             cmd.setExecutable(getJavaExecutable().getAbsolutePath());
@@ -558,6 +570,9 @@ public abstract class AbstractCodegenMoho extends AbstractMojo {
      */
     protected abstract boolean shouldRun(GenericWsdlOption wsdlOption, File doneFile, URI wsdlURI);
 
+    protected void createMarkerFile(GenericWsdlOption wsdlOption, File doneFile, URI wsdlURI) throws IOException {
+        doneFile.createNewFile();
+    }
    
     private String[] createForkOnceArgs(List<List<String>> wargs) throws MojoExecutionException {
         try {

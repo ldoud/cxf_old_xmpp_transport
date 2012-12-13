@@ -21,7 +21,6 @@ package org.apache.cxf.jaxws;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.HttpURLConnection;
@@ -62,7 +61,7 @@ import org.apache.cxf.service.invoker.MethodDispatcher;
 import org.apache.cxf.service.model.BindingOperationInfo;
 
 public class JaxWsClientProxy extends org.apache.cxf.frontend.ClientProxy implements
-    InvocationHandler, BindingProvider {
+    BindingProvider {
 
     public static final String THREAD_LOCAL_REQUEST_CONTEXT = "thread.local.request.context";
     
@@ -178,8 +177,7 @@ public class JaxWsClientProxy extends org.apache.cxf.frontend.ClientProxy implem
                 }
             }
         }
-        return result;
-
+        return adjustObject(result);
     }
     boolean isAsync(Method m) {
         return m.getName().endsWith("Async")
@@ -220,7 +218,9 @@ public class JaxWsClientProxy extends org.apache.cxf.frontend.ClientProxy implem
             if (role != null) {
                 soapFault.setFaultActor(role);
             }
-            if (((SoapFault)ex).getSubCode() != null) {
+            if (((SoapFault)ex).getSubCode() != null 
+                && !SOAPConstants.URI_NS_SOAP_1_1_ENVELOPE.equals(soapFault.getNamespaceURI())) {
+                // set the subcode only if it is supported (e.g, 1.2)
                 soapFault.appendFaultSubcode(((SoapFault)ex).getSubCode());
             }
 
@@ -258,6 +258,11 @@ public class JaxWsClientProxy extends org.apache.cxf.frontend.ClientProxy implem
         AsyncHandler<Object> handler;
         if (params.length > 0 && params[params.length - 1] instanceof AsyncHandler) {
             handler = (AsyncHandler<Object>)params[params.length - 1];
+            Object[] newParams = new Object[params.length - 1];
+            for (int i = 0; i < newParams.length; i++) {
+                newParams[i] = params[i];
+            }
+            params = newParams;
         } else {
             handler = null;
         }

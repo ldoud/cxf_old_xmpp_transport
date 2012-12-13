@@ -92,10 +92,13 @@ public class SwAOutInterceptor extends AbstractSoapInterceptor {
             }
         }
         try {
-            return (Boolean)m.invoke(ctx);
+            if (m != null) {
+                return (Boolean)m.invoke(ctx);
+            }
         } catch (Exception e) {
-            return false;
+            //ignore
         }
+        return false;
     }
 
     public void handleMessage(SoapMessage message) throws Fault {
@@ -243,13 +246,16 @@ public class SwAOutInterceptor extends AbstractSoapInterceptor {
             }
         } else {
             ByteArrayOutputStream bwriter = new ByteArrayOutputStream();
-            XMLStreamWriter writer = StaxUtils.createXMLStreamWriter(bwriter);
+            XMLStreamWriter writer = null;
             try {
+                writer = StaxUtils.createXMLStreamWriter(bwriter);
                 StaxUtils.copy(o, writer);
                 writer.flush();
                 ds = new ByteDataSource(bwriter.toByteArray(), ct);
             } catch (XMLStreamException e1) {
                 throw new Fault(e1);
+            } finally {
+                StaxUtils.close(writer);
             }
         }
         return ds;

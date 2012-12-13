@@ -22,16 +22,17 @@
     <artifactId>ws_addressing</artifactId>
     <name>WS-Addressing Demo</name>
     <description>WS-Addressing Demo</description>
-    <version>2.7.1-SNAPSHOT</version>
+    <version>2.7.2-SNAPSHOT</version>
 
     <parent>
         <groupId>org.apache.cxf.samples</groupId>
         <artifactId>cxf-samples</artifactId>
-        <version>2.7.1-SNAPSHOT</version>
+        <version>2.7.2-SNAPSHOT</version>
     </parent>
 
     <properties>
         <cxf.version>${project.version}</cxf.version>
+        <wsdl.location>${basedir}/src/main/resources/hello_world_addr.wsdl</wsdl.location>
     </properties>
     <build>
         <plugins>
@@ -53,31 +54,15 @@
                         <configuration>
                             <wsdlOptions>
                                 <wsdlOption>
-                                    <wsdl>${basedir}/wsdl/hello_world_addr.wsdl</wsdl>
+                                    <wsdl>${wsdl.location}</wsdl>
+                                    <frontEnd>jaxws21</frontEnd>
+                                    <faultSerialVersionUID>1</faultSerialVersionUID>
                                 </wsdlOption>
                             </wsdlOptions>
                         </configuration>
                         <goals>
                             <goal>wsdl2java</goal>
                         </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <artifactId>maven-antrun-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>copyxmlfiles</id>
-                        <phase>generate-sources</phase>
-                        <goals>
-                            <goal>run</goal>
-                        </goals>
-                        <configuration>
-                            <tasks>
-                                <copy file="${basedir}/src/main/java/demo/ws_addressing/client/client.xml" todir="${basedir}/target/classes/demo/ws_addressing/client" />
-                                <copy file="${basedir}/src/main/java/demo/ws_addressing/server/server.xml" todir="${basedir}/target/classes/demo/ws_addressing/server" />
-                            </tasks>
-                        </configuration>
                     </execution>
                 </executions>
             </plugin>
@@ -129,7 +114,7 @@
                                 <configuration>
                                     <mainClass>demo.ws_addressing.client.Client</mainClass>
                                     <arguments>
-                                        <argument>${basedir}/wsdl/hello_world_addr.wsdl</argument>
+                                        <argument>${wsdl.location}</argument>
                                         <argument>insecure</argument>
                                     </arguments>
                                 </configuration>
@@ -144,22 +129,17 @@
         <dependency>
             <groupId>org.apache.cxf</groupId>
             <artifactId>cxf-rt-frontend-jaxws</artifactId>
-            <version>2.7.1-SNAPSHOT</version>
+            <version>2.7.2-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.apache.cxf</groupId>
             <artifactId>cxf-rt-transports-http</artifactId>
-            <version>2.7.1-SNAPSHOT</version>
+            <version>2.7.2-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.apache.cxf</groupId>
             <artifactId>cxf-rt-transports-http-jetty</artifactId>
-            <version>2.7.1-SNAPSHOT</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.cxf</groupId>
-            <artifactId>cxf-rt-ws-addr</artifactId>
-            <version>2.7.1-SNAPSHOT</version>
+            <version>2.7.2-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.springframework</groupId>

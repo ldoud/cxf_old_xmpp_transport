@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -39,7 +40,6 @@ import java.util.logging.Logger;
 
 import javax.ws.rs.BindingPriority;
 import javax.ws.rs.Produces;
-import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.client.ClientRequestFilter;
 import javax.ws.rs.client.ClientResponseFilter;
 import javax.ws.rs.container.ContainerRequestFilter;
@@ -78,6 +78,7 @@ import org.apache.cxf.jaxrs.impl.RequestPreprocessor;
 import org.apache.cxf.jaxrs.impl.ResourceInfoImpl;
 import org.apache.cxf.jaxrs.impl.WebApplicationExceptionMapper;
 import org.apache.cxf.jaxrs.impl.WriterInterceptorMBW;
+import org.apache.cxf.jaxrs.model.BeanParamInfo;
 import org.apache.cxf.jaxrs.model.ClassResourceInfo;
 import org.apache.cxf.jaxrs.model.OperationResourceInfo;
 import org.apache.cxf.jaxrs.model.ProviderInfo;
@@ -158,6 +159,10 @@ public final class ProviderFactory {
     private ProviderInfo<Application> application;
     private List<DynamicFeature> dynamicFeatures = new LinkedList<DynamicFeature>();
     
+    // This may be better be kept at OperationResourceInfo ? Though we may have many methods
+    // across different resources that use the same BeanParam. 
+    private Map<Class<?>, BeanParamInfo> beanParams = new HashMap<Class<?>, BeanParamInfo>();
+    
     // List of injected providers
     private Collection<ProviderInfo<?>> injectedProviders = 
         new LinkedList<ProviderInfo<?>>();
@@ -220,8 +225,12 @@ public final class ProviderFactory {
         return new ProviderFactory(BusFactory.getThreadDefaultBus());
     }
     
-    public static ProviderFactory getInstance(Bus bus) {
+    public static ProviderFactory createInstance(Bus bus) {
         return new ProviderFactory(bus);
+    }
+    
+    public static ProviderFactory getInstance(Bus bus) {
+        return (ProviderFactory)bus.getProperty(ProviderFactory.class.getName());
     }
     
     public static ProviderFactory getInstance(Message m) {
@@ -231,6 +240,14 @@ public final class ProviderFactory {
     
     public static ProviderFactory getSharedInstance() {
         return SHARED_FACTORY;
+    }
+    
+    public void addBeanParamInfo(BeanParamInfo bpi) {
+        beanParams.put(bpi.getResourceClass(), bpi);
+    }
+    
+    public BeanParamInfo getBeanParamInfo(Class<?> beanClass) {
+        return beanParams.get(beanClass);
     }
     
     public <T> ContextResolver<T> createContextResolver(Type contextType, 
@@ -244,13 +261,14 @@ public final class ProviderFactory {
         Message responseMessage = isRequestor ? m.getExchange().getInMessage() 
                                               : m.getExchange().getOutMessage();
         if (responseMessage != null) {
-            if (!responseMessage.containsKey(Message.CONTENT_TYPE)) {
+            Object ctProperty = responseMessage.get(Message.CONTENT_TYPE);
+            if (ctProperty == null) {
                 List<MediaType> accepts = requestHeaders.getAcceptableMediaTypes();
                 if (accepts.size() > 0) {
                     mt = accepts.get(0);
                 }
             } else {
-                mt = MediaType.valueOf(responseMessage.get(Message.CONTENT_TYPE).toString());
+                mt = MediaType.valueOf(ctProperty.toString());
             }
         } else {
             mt = requestHeaders.getMediaType();
@@ -328,40 +346,21 @@ public final class ProviderFactory {
         return null;
     }
     
-    //This method can only be called from providers
     public <T extends Throwable> ExceptionMapper<T> createExceptionMapper(Class<?> exceptionType,
                                                                           Message m) {
-        return createExceptionMapper(null, exceptionType, m);
-    }
-    
-    public <T extends Throwable> ExceptionMapper<T> createExceptionMapper(T ex, 
-                                                                          Message m) {
-        return createExceptionMapper(ex, ex.getClass(), m);
-    }
-    
-    private <T extends Throwable> ExceptionMapper<T> createExceptionMapper(T ex, 
-                                                                           Class<?> exceptionType,
-                                                                           Message m) {
-        
-        ExceptionMapper<T> mapper = doCreateExceptionMapper(ex, exceptionType, m);
+        ExceptionMapper<T> mapper = doCreateExceptionMapper(exceptionType, m);
         if (mapper != null || this == SHARED_FACTORY) {
             return mapper;
         }
         
-        return SHARED_FACTORY.createExceptionMapper(ex, exceptionType, m);
+        return SHARED_FACTORY.createExceptionMapper(exceptionType, m);
     }
     
     @SuppressWarnings("unchecked")
     private <T extends Throwable> ExceptionMapper<T> doCreateExceptionMapper(
-        T exception, Class<?> exceptionType, Message m) {
+        Class<?> exceptionType, Message m) {
         
         List<ExceptionMapper<?>> candidates = new LinkedList<ExceptionMapper<?>>();
-        if (WebApplicationException.class == exceptionType 
-            && exception instanceof WebApplicationException) {
-            exceptionType = 
-                JAXRSUtils.getWebApplicationExceptionClass(((WebApplicationException)exception).getResponse(), 
-                                                           exceptionType);
-        }
         for (ProviderInfo<ExceptionMapper<?>> em : exceptionMappers) {
             handleMapper(candidates, em, exceptionType, m, ExceptionMapper.class, true);
         }

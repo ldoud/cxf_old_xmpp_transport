@@ -31,6 +31,7 @@ import java.util.Map;
 
 import javax.xml.ws.BindingProvider;
 
+import org.apache.cxf.common.util.ReflectionUtil;
 import org.apache.cxf.endpoint.Client;
 
 import org.junit.AfterClass;
@@ -147,8 +148,9 @@ public abstract class AbstractClientServerTestBase extends Assert {
         }
         if (c == null) {
             try {
-                Method m = o.getClass().getDeclaredMethod("getClient");
-                m.setAccessible(true);
+                final Method m = o.getClass().getDeclaredMethod("getClient");
+                ReflectionUtil.setAccessible(m);
+
                 c = (Client)m.invoke(o);
             } catch (Throwable t) {
                 //ignore

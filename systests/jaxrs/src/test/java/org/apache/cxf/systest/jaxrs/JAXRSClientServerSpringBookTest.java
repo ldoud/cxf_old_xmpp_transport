@@ -31,6 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.ws.rs.InternalServerErrorException;
 import javax.ws.rs.core.Response;
 import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlRootElement;
@@ -67,7 +68,7 @@ public class JAXRSClientServerSpringBookTest extends AbstractBusClientServerTest
     public static void startServers() throws Exception {
         AbstractResourceInfo.clearAllMaps();
         assertTrue("server did not launch correctly", 
-                   launchServer(BookServerSpring.class));
+                   launchServer(BookServerSpring.class, true));
         createStaticBus();
     }
     
@@ -82,21 +83,50 @@ public class JAXRSClientServerSpringBookTest extends AbstractBusClientServerTest
     }
     
     @Test
+    public void testGetBookWebEx() throws Exception {
+        final String address = "http://localhost:" + PORT + "/the/thebooks/bookstore/books/webex"; 
+        doTestGetBookWebEx(address);
+        
+    }
+    
+    @Test
+    public void testGetBookWebEx4() throws Exception {
+        final String address = "http://localhost:" + PORT + "/the/thebooks3/bookstore/books/webex2"; 
+        doTestGetBookWebEx(address);
+        
+    }
+    
+    private void doTestGetBookWebEx(String address) throws Exception {
+        WebClient wc = WebClient.create(address);
+        WebClient.getConfig(wc).getHttpConduit().getClient().setReceiveTimeout(10000000L);
+        try {
+            wc.accept("text/plain", "application/json").get(Book.class);
+            fail("InternalServerErrorException is expected");
+        } catch (InternalServerErrorException ex) {
+            String errorMessage = ex.getResponse().readEntity(String.class);
+            assertEquals("Book web exception", errorMessage);
+        }
+        
+    }
+    
+    @Test
     public void testPostGeneratedBook() throws Exception {
-        String baseAddress = "http://localhost:" + PORT + "/the/generated/bookstore/books/1";
+        String baseAddress = "http://localhost:" + PORT + "/the/generated";
         JAXBElementProvider<?> provider = new JAXBElementProvider<Object>();
         provider.setJaxbElementClassMap(Collections.singletonMap(
                                           "org.apache.cxf.systest.jaxrs.codegen.schema.Book", 
                                           "{http://superbooks}thebook"));
         
-        WebClient wc = WebClient.create(baseAddress,
-                                        Collections.singletonList(provider));
-        wc.type("application/xml");
+        org.apache.cxf.systest.jaxrs.codegen.service.BookStore bookStore = 
+            JAXRSClientFactory.create(baseAddress, 
+                org.apache.cxf.systest.jaxrs.codegen.service.BookStore.class,
+                Collections.singletonList(provider));
         
         org.apache.cxf.systest.jaxrs.codegen.schema.Book book = 
             new org.apache.cxf.systest.jaxrs.codegen.schema.Book();
         book.setId(123);
-        Response r = wc.post(book);
+        bookStore.addBook(123, book);
+        Response r = WebClient.client(bookStore).getResponse();
         assertEquals(204, r.getStatus());
     }
     
@@ -202,6 +232,7 @@ public class JAXRSClientServerSpringBookTest extends AbstractBusClientServerTest
         WebClient wc = WebClient.create(endpointAddress);
         wc.accept("application/xhtml+xml").path(666).matrix("name2", 2).query("name", "Action - ");
         XMLSource source = wc.get(XMLSource.class);
+        source.setBuffering();
         Map<String, String> namespaces = new HashMap<String, String>();
         namespaces.put("xhtml", "http://www.w3.org/1999/xhtml");
         Book2 b = source.getNode("xhtml:html/xhtml:body/xhtml:ul/xhtml:Book", namespaces, Book2.class);
@@ -667,9 +698,10 @@ public class JAXRSClientServerSpringBookTest extends AbstractBusClientServerTest
     private String getStringFromInputStream(InputStream in) throws Exception {        
         CachedOutputStream bos = new CachedOutputStream();
         IOUtils.copy(in, bos);
+        String str = new String(bos.getBytes()); 
         in.close();
         bos.close();
-        return bos.getOut().toString();        
+        return str;
     }
 
         

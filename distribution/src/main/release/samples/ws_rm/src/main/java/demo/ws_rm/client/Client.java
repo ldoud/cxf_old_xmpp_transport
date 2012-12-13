@@ -42,7 +42,7 @@ public final class Client {
         try {
             
             SpringBusFactory bf = new SpringBusFactory();
-            URL busFile = Client.class.getResource("ws_rm.xml");
+            URL busFile = Client.class.getResource("/client.xml");
             Bus bus = bf.createBus(busFile.toString());
             BusFactory.setDefaultBus(bus);
 
@@ -52,7 +52,7 @@ public final class Client {
                 File wsdlFile = new File(args[0]);
                 URL wsdlURL;
                 if (wsdlFile.exists()) {
-                    wsdlURL = wsdlFile.toURL();
+                    wsdlURL = wsdlFile.toURI().toURL();
                 } else {
                     wsdlURL = new URL(args[0]);
                 }

@@ -22,8 +22,10 @@ package org.apache.cxf.bus;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 import org.apache.cxf.Bus;
 import org.apache.cxf.BusFactory;
@@ -54,6 +56,7 @@ public class CXFBusImpl extends AbstractBasicInterceptorProvider implements Bus 
     }
     
     protected final Map<Class<?>, Object> extensions;
+    protected final Set<Class<?>> missingExtensions;
     protected String id;
     private BusState state;      
     private final Collection<Feature> features = new CopyOnWriteArrayList<Feature>();
@@ -70,6 +73,8 @@ public class CXFBusImpl extends AbstractBasicInterceptorProvider implements Bus 
             extensions = new ConcurrentHashMap<Class<?>, Object>(extensions);
         }
         this.extensions = extensions;
+        this.missingExtensions = new CopyOnWriteArraySet<Class<?>>();
+        
         
         state = BusState.INITIAL;
         
@@ -90,6 +95,10 @@ public class CXFBusImpl extends AbstractBasicInterceptorProvider implements Bus 
     public final <T> T getExtension(Class<T> extensionType) {
         Object obj = extensions.get(extensionType);
         if (obj == null) {
+            if (missingExtensions.contains(extensionType)) {
+                //already know we cannot find it
+                return null;
+            }
             ConfiguredBeanLocator loc = (ConfiguredBeanLocator)extensions.get(ConfiguredBeanLocator.class);
             if (loc == null) {
                 loc = createConfiguredBeanLocator();
@@ -107,6 +116,9 @@ public class CXFBusImpl extends AbstractBasicInterceptorProvider implements Bus 
         }
         if (null != obj) {
             return extensionType.cast(obj);
+        } else {
+            //record that it couldn't be found to avoid expensive searches again in the future
+            missingExtensions.add(extensionType);
         }
         return null;
     }
@@ -159,8 +171,9 @@ public class CXFBusImpl extends AbstractBasicInterceptorProvider implements Bus 
 
     public <T> void setExtension(T extension, Class<T> extensionType) {
         extensions.put(extensionType, extension);
+        missingExtensions.remove(extensionType);
     }
-     
+
     public String getId() {        
         return null == id ? DEFAULT_BUS_ID + Integer.toString(Math.abs(this.hashCode())) : id;
     }

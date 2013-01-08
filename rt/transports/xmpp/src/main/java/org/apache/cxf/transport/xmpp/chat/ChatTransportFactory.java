@@ -33,8 +33,6 @@ import org.apache.cxf.transport.AbstractTransportFactory;
 import org.apache.cxf.transport.Destination;
 import org.apache.cxf.transport.DestinationFactory;
 import org.apache.cxf.transport.xmpp.strategy.ConnectionStrategy;
-import org.apache.cxf.transport.xmpp.strategy.MessageReceiptStrategy;
-import org.apache.cxf.transport.xmpp.strategy.XMPPService;
 import org.apache.cxf.ws.addressing.AttributedURIType;
 import org.apache.cxf.ws.addressing.EndpointReferenceType;
 import org.jivesoftware.smack.XMPPException;
@@ -45,17 +43,16 @@ import org.jivesoftware.smack.XMPPException;
  * 
  * @author Leon Doud
  */
-public class XMPPTransportFactory extends AbstractTransportFactory implements DestinationFactory, XMPPService {
+public class ChatTransportFactory extends AbstractTransportFactory implements DestinationFactory {
 
     public static final List<String> DEFAULT_NAMESPACES = Arrays
     .asList("http://cxf.apache.org/transports/xmpp/chat");
     
-    private static final Logger LOGGER = LogUtils.getLogger(XMPPTransportFactory.class);
+    private static final Logger LOGGER = LogUtils.getLogger(ChatTransportFactory.class);
 
     private ConnectionStrategy xmppConnection;
-    private MessageReceiptStrategy messageReceiver;
-
-    public XMPPTransportFactory() throws XMPPException {
+  
+    public ChatTransportFactory() throws XMPPException {
         super();
         setTransportIds(DEFAULT_NAMESPACES);
     }
@@ -79,23 +76,15 @@ public class XMPPTransportFactory extends AbstractTransportFactory implements De
         
         // This would be a reused connection.
         if (xmppConnection !=  null) {
+            LOGGER.info("Using shared XMPP connection for: " + endpointInfo.getService().getName());
             dest.setConnectionStrategy(xmppConnection);
-        }
-        
-        if (messageReceiver != null) {
-            dest.setMessageReceiptStrategy(messageReceiver);
         }
 
         return dest;
     }
 
-    @Override
     public void setConnectionStrategy(ConnectionStrategy strat) {
         xmppConnection = strat; 
     }
 
-    @Override
-    public void setMessageReceiptStrategy(MessageReceiptStrategy strat) {
-        messageReceiver = strat;
-    }
 }

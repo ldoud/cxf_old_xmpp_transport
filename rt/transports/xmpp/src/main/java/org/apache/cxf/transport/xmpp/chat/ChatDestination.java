@@ -29,21 +29,21 @@ import org.apache.cxf.transport.Conduit;
 import org.apache.cxf.transport.MessageObserver;
 import org.apache.cxf.transport.xmpp.strategy.ConnectionStrategy;
 import org.apache.cxf.transport.xmpp.strategy.MessageReceiptStrategy;
-import org.apache.cxf.transport.xmpp.strategy.XMPPService;
 import org.apache.cxf.ws.addressing.EndpointReferenceType;
 
 /**
- * Listens for XMPP IQ packets targeted for this service. Any IQ packets received are used to create CXF
- * messages. The CXF messages are then passed to a message observer for processing.
+ * Listens for XMPP IQ packets targeted for this service. 
+ * Any IQ packets received are used to create CXF messages. 
+ * The CXF messages are then passed to a message observer for processing.
  * 
  * @author Leon Doud
  */
-public class ChatDestination extends AbstractDestination implements XMPPService {
+public class ChatDestination extends AbstractDestination {
     
     private static final Logger LOGGER = LogUtils.getLogger(ChatDestination.class);
 
     private ConnectionStrategy xmppConnection;
-    private MessageReceiptStrategy messageReceiver;
+    private MessageReceiptStrategy messageReceiver = new ChatServerChannel();
     
     public ChatDestination(EndpointReferenceType ref, EndpointInfo epInfo) {
         super(ref, epInfo);
@@ -60,6 +60,10 @@ public class ChatDestination extends AbstractDestination implements XMPPService 
         }
     }
     
+    public void setConnectionStrategy(ConnectionStrategy strat) {
+        xmppConnection = strat;
+    }
+    
     @Override
     protected void activate() {
         super.activate();
@@ -67,6 +71,7 @@ public class ChatDestination extends AbstractDestination implements XMPPService 
         
         // Setup to process messages before connecting.
         messageReceiver.setMessageObserver(getMessageObserver());
+        xmppConnection.registerListener(messageReceiver);
         xmppConnection.activate();
     }
     
@@ -75,6 +80,7 @@ public class ChatDestination extends AbstractDestination implements XMPPService 
         super.deactivate();
         LOGGER.info("Destination deactivation");
         
+        xmppConnection.unregisterListener(messageReceiver);
         xmppConnection.deactivate();
     }
 
@@ -87,15 +93,4 @@ public class ChatDestination extends AbstractDestination implements XMPPService 
     protected Logger getLogger() {
         return LOGGER;
     }
-
-    @Override
-    public void setConnectionStrategy(ConnectionStrategy strat) {
-        xmppConnection = strat;
-    }
-
-    @Override
-    public void setMessageReceiptStrategy(MessageReceiptStrategy strat) {
-        messageReceiver = strat;
-    }
-
 }

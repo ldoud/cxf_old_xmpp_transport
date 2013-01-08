@@ -33,4 +33,8 @@ public interface ConnectionStrategy {
      * Request the XMPP connection is closed.
      */
     void deactivate();
+    
+    void registerListener(MessageReceiptStrategy xmppListener);
+    
+    void unregisterListener(MessageReceiptStrategy xmppListener);
 }

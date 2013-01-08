@@ -22,7 +22,6 @@ package org.apache.cxf.transport.xmpp.chat;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.annotation.Resource;
@@ -33,7 +32,11 @@ import org.apache.cxf.service.model.EndpointInfo;
 import org.apache.cxf.transport.AbstractTransportFactory;
 import org.apache.cxf.transport.Destination;
 import org.apache.cxf.transport.DestinationFactory;
-import org.jivesoftware.smack.XMPPConnection;
+import org.apache.cxf.transport.xmpp.strategy.ConnectionStrategy;
+import org.apache.cxf.transport.xmpp.strategy.MessageReceiptStrategy;
+import org.apache.cxf.transport.xmpp.strategy.XMPPService;
+import org.apache.cxf.ws.addressing.AttributedURIType;
+import org.apache.cxf.ws.addressing.EndpointReferenceType;
 import org.jivesoftware.smack.XMPPException;
 
 /**
@@ -42,17 +45,15 @@ import org.jivesoftware.smack.XMPPException;
  * 
  * @author Leon Doud
  */
-public class XMPPTransportFactory extends AbstractTransportFactory implements DestinationFactory {
+public class XMPPTransportFactory extends AbstractTransportFactory implements DestinationFactory, XMPPService {
 
     public static final List<String> DEFAULT_NAMESPACES = Arrays
-    .asList("http://cxf.apache.org/transports/xmpp");
+    .asList("http://cxf.apache.org/transports/xmpp/chat");
     
     private static final Logger LOGGER = LogUtils.getLogger(XMPPTransportFactory.class);
 
-    // TODO Make these configurable.
-    private String serviceName = "localhost.localdomain";
-    private String username = "service1";
-    private String password = "service1";
+    private ConnectionStrategy xmppConnection;
+    private MessageReceiptStrategy messageReceiver;
 
     public XMPPTransportFactory() throws XMPPException {
         super();
@@ -68,21 +69,33 @@ public class XMPPTransportFactory extends AbstractTransportFactory implements De
      * {@inheritDoc}
      */
     public Destination getDestination(EndpointInfo endpointInfo) throws IOException {
-        XMPPDestination dest = new XMPPDestination(endpointInfo);
-
-        try {
-            String resource = endpointInfo.getService().getName().toString();
-
-            XMPPConnection xmppConnection = new XMPPConnection(serviceName);
-            xmppConnection.connect();
-            xmppConnection.login(username, password, resource);
-            LOGGER.info("Connected using jid: " + xmppConnection.getUser());
-
-            dest.setConnection(xmppConnection);
-        } catch (XMPPException e) {
-            LOGGER.log(Level.SEVERE, "Unable to connect");
+        AttributedURIType address = new AttributedURIType();
+        address.setValue(endpointInfo.getAddress());
+        
+        EndpointReferenceType epRefType = new EndpointReferenceType();
+        epRefType.setAddress(address);
+        
+        ChatDestination dest = new ChatDestination(epRefType, endpointInfo);
+        
+        // This would be a reused connection.
+        if (xmppConnection !=  null) {
+            dest.setConnectionStrategy(xmppConnection);
+        }
+        
+        if (messageReceiver != null) {
+            dest.setMessageReceiptStrategy(messageReceiver);
         }
 
         return dest;
+    }
+
+    @Override
+    public void setConnectionStrategy(ConnectionStrategy strat) {
+        xmppConnection = strat; 
+    }
+
+    @Override
+    public void setMessageReceiptStrategy(MessageReceiptStrategy strat) {
+        messageReceiver = strat;
     }
 }

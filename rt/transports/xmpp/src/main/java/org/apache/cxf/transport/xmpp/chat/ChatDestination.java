@@ -19,24 +19,18 @@
 
 package org.apache.cxf.transport.xmpp.chat;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.util.logging.Logger;
 
-import org.apache.cxf.message.Exchange;
-import org.apache.cxf.message.ExchangeImpl;
+import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.message.Message;
-import org.apache.cxf.message.MessageImpl;
 import org.apache.cxf.service.model.EndpointInfo;
+import org.apache.cxf.transport.AbstractDestination;
 import org.apache.cxf.transport.Conduit;
-import org.apache.cxf.transport.Destination;
 import org.apache.cxf.transport.MessageObserver;
-import org.apache.cxf.ws.addressing.AttributedURIType;
+import org.apache.cxf.transport.xmpp.strategy.ConnectionStrategy;
+import org.apache.cxf.transport.xmpp.strategy.MessageReceiptStrategy;
+import org.apache.cxf.transport.xmpp.strategy.XMPPService;
 import org.apache.cxf.ws.addressing.EndpointReferenceType;
-import org.jivesoftware.smack.Chat;
-import org.jivesoftware.smack.ChatManagerListener;
-import org.jivesoftware.smack.MessageListener;
-import org.jivesoftware.smack.XMPPConnection;
 
 /**
  * Listens for XMPP IQ packets targeted for this service. Any IQ packets received are used to create CXF
@@ -44,102 +38,64 @@ import org.jivesoftware.smack.XMPPConnection;
  * 
  * @author Leon Doud
  */
-public class XMPPDestination implements Destination {
-    private XMPPConnection xmppConnection;
+public class ChatDestination extends AbstractDestination implements XMPPService {
+    
+    private static final Logger LOGGER = LogUtils.getLogger(ChatDestination.class);
 
-    // Values initialized during construction.
-    private EndpointReferenceType epRefType = new EndpointReferenceType();
-
-    // After messages are received they are passed to this observer.
-    private MessageObserver msgObserver;
-
-    public XMPPDestination(EndpointInfo epInfo) {
-        // Initialize the address of the epRefType member.
-        AttributedURIType address = new AttributedURIType();
-        address.setValue(epInfo.getAddress());
-        epRefType.setAddress(address);
+    private ConnectionStrategy xmppConnection;
+    private MessageReceiptStrategy messageReceiver;
+    
+    public ChatDestination(EndpointReferenceType ref, EndpointInfo epInfo) {
+        super(ref, epInfo);
     }
-
-    public void setConnection(XMPPConnection newConnection) {
-        xmppConnection = newConnection;
-
-        // Receive SOAP via chat.
-        xmppConnection.getChatManager().addChatListener(new ChatManagerListener() {
-            @Override
-            public void chatCreated(Chat chat, boolean local) {
-                System.out.println("Starting chat with: " + chat.getParticipant());
-                chat.addMessageListener(new MessageListener() {
-
-                    @Override
-                    public void processMessage(Chat chat, org.jivesoftware.smack.packet.Message message) {
-                        System.out.println("Processing chat message: " + message.getBody());
-                        Message cxfMsg = new MessageImpl();
-                        cxfMsg.setContent(InputStream.class, new ByteArrayInputStream(message.getBody()
-                            .getBytes()));
-
-                        Exchange msgExchange = new ExchangeImpl();
-                        msgExchange.setConduit(new XMPPBackChannelConduit(chat));
-                        cxfMsg.setExchange(msgExchange);
-
-                        msgObserver.onMessage(cxfMsg);
-
-                    }
-                });
-
-            }
-        });
-    }
-
-    /**
-     * Required by the Destination interface.
-     * 
-     * @see org.apache.cxf.transport.Destination
-     */
+    
     @Override
-    public void setMessageObserver(MessageObserver observer) {
-        msgObserver = observer;
+    public synchronized void setMessageObserver(MessageObserver observer) {
+        super.setMessageObserver(observer);
+        
+        // Just in case the message observer changes 
+        // pass it along to the XMPP message listener.
+        if (messageReceiver != null && observer != null) {
+            messageReceiver.setMessageObserver(observer);
+        }
+    }
+    
+    @Override
+    protected void activate() {
+        super.activate();
+        LOGGER.info("Destination activation");
+        
+        // Setup to process messages before connecting.
+        messageReceiver.setMessageObserver(getMessageObserver());
+        xmppConnection.activate();
+    }
+    
+    @Override
+    protected void deactivate() {
+        super.deactivate();
+        LOGGER.info("Destination deactivation");
+        
+        xmppConnection.deactivate();
     }
 
-    /**
-     * Required by the Destination interface.
-     * 
-     * @see org.apache.cxf.transport.Destination
-     */
     @Override
-    public EndpointReferenceType getAddress() {
-        return epRefType;
+    protected Conduit getInbuiltBackChannel(Message msg) {
+        return msg.getExchange().getConduit(msg);
     }
 
-    /**
-     * Not used. The back channel is set on the exchange of the message when the message is received. Required
-     * by the Destination interface.
-     * 
-     * @see org.apache.cxf.transport.Destination
-     */
     @Override
-    public Conduit getBackChannel(Message inMsg, Message notUsedMsg, EndpointReferenceType notUsedEpRefType)
-        throws IOException {
-        return null;
+    protected Logger getLogger() {
+        return LOGGER;
     }
 
-    /**
-     * Required by the Destination interface.
-     * 
-     * @see org.apache.cxf.transport.Destination
-     */
     @Override
-    public MessageObserver getMessageObserver() {
-        return msgObserver;
+    public void setConnectionStrategy(ConnectionStrategy strat) {
+        xmppConnection = strat;
     }
 
-    /**
-     * Log out of XMPP. Required by the Destination interface.
-     * 
-     * @see org.apache.cxf.transport.Destination
-     */
     @Override
-    public void shutdown() {
-        xmppConnection.disconnect();
+    public void setMessageReceiptStrategy(MessageReceiptStrategy strat) {
+        messageReceiver = strat;
     }
 
 }

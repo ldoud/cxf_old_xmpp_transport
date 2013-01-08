@@ -21,7 +21,9 @@ package org.apache.cxf.transport.xmpp.chat;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.logging.Logger;
 
+import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.io.CachedOutputStream;
 import org.apache.cxf.message.Message;
 import org.apache.cxf.transport.Conduit;
@@ -31,11 +33,14 @@ import org.apache.cxf.wsdl.EndpointReferenceUtils;
 import org.jivesoftware.smack.Chat;
 import org.jivesoftware.smack.XMPPException;
 
-public class XMPPBackChannelConduit implements Conduit {
+public class ChatServerReplyChannel implements Conduit {
+    
+    private static final Logger LOGGER = LogUtils.getLogger(ChatServerReplyChannel.class);
+    
     private MessageObserver msgObserver;
     private Chat xmppChat;
 
-    public XMPPBackChannelConduit(Chat chat) {
+    public ChatServerReplyChannel(Chat chat) {
         xmppChat = chat;
     }
 
@@ -52,13 +57,12 @@ public class XMPPBackChannelConduit implements Conduit {
     @Override
     public void close() {
         // The XMPP connection stays open long after the reply conduit.
-        // The connection belongs to the XMPP transport factory and
-        // all the services on the Bus that use XMPP.
+        // The connection will be closed later by the server's destination object.
     }
 
     /**
-     * The resources for this message should be closed. This will trigger the writing of the SOAP response to
-     * the client.
+     * The resources for this message should be closed. 
+     * This will trigger the writing of the SOAP response to the client.
      */
     @Override
     public void close(Message msg) throws IOException {
@@ -67,7 +71,7 @@ public class XMPPBackChannelConduit implements Conduit {
         soapResponse.writeCacheTo(replyMsg);
 
         try {
-            System.out.println("Sending chat response: " + replyMsg.toString());
+            LOGGER.info("Sending chat response: " + replyMsg.toString());
             xmppChat.sendMessage(replyMsg.toString());
         } catch (XMPPException e) {
             throw new IOException(e);
@@ -80,7 +84,8 @@ public class XMPPBackChannelConduit implements Conduit {
     }
 
     /**
-     * Puts an output stream in the message. The interceptors will write the response into this output stream.
+     * Puts an output stream in the message. 
+     * The interceptors will write the response into this output stream.
      */
     @Override
     public void prepare(Message msg) throws IOException {

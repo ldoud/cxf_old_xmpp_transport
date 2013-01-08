@@ -22,17 +22,14 @@ package org.apache.cxf.transport.xmpp.chat;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.logging.Logger;
 
 import javax.annotation.Resource;
 
 import org.apache.cxf.Bus;
-import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.service.model.EndpointInfo;
 import org.apache.cxf.transport.AbstractTransportFactory;
 import org.apache.cxf.transport.Destination;
 import org.apache.cxf.transport.DestinationFactory;
-import org.apache.cxf.transport.xmpp.strategy.ConnectionStrategy;
 import org.apache.cxf.ws.addressing.AttributedURIType;
 import org.apache.cxf.ws.addressing.EndpointReferenceType;
 import org.jivesoftware.smack.XMPPException;
@@ -47,10 +44,6 @@ public class ChatTransportFactory extends AbstractTransportFactory implements De
 
     public static final List<String> DEFAULT_NAMESPACES = Arrays
     .asList("http://cxf.apache.org/transports/xmpp/chat");
-    
-    private static final Logger LOGGER = LogUtils.getLogger(ChatTransportFactory.class);
-
-    private ConnectionStrategy xmppConnection;
   
     public ChatTransportFactory() throws XMPPException {
         super();
@@ -73,18 +66,7 @@ public class ChatTransportFactory extends AbstractTransportFactory implements De
         epRefType.setAddress(address);
         
         ChatDestination dest = new ChatDestination(epRefType, endpointInfo);
-        
-        // This would be a reused connection.
-        if (xmppConnection !=  null) {
-            LOGGER.info("Using shared XMPP connection for: " + endpointInfo.getService().getName());
-            dest.setConnectionStrategy(xmppConnection);
-        }
-
         return dest;
-    }
-
-    public void setConnectionStrategy(ConnectionStrategy strat) {
-        xmppConnection = strat; 
     }
 
 }

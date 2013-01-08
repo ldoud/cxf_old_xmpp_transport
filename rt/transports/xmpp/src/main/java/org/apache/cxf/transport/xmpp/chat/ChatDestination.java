@@ -19,78 +19,21 @@
 
 package org.apache.cxf.transport.xmpp.chat;
 
-import java.util.logging.Logger;
-
-import org.apache.cxf.common.logging.LogUtils;
-import org.apache.cxf.message.Message;
 import org.apache.cxf.service.model.EndpointInfo;
-import org.apache.cxf.transport.AbstractDestination;
-import org.apache.cxf.transport.Conduit;
-import org.apache.cxf.transport.MessageObserver;
-import org.apache.cxf.transport.xmpp.strategy.ConnectionStrategy;
 import org.apache.cxf.transport.xmpp.strategy.MessageReceiptStrategy;
+import org.apache.cxf.transport.xmpp.strategy.XMPPDestination;
 import org.apache.cxf.ws.addressing.EndpointReferenceType;
 
-/**
- * Listens for XMPP IQ packets targeted for this service. 
- * Any IQ packets received are used to create CXF messages. 
- * The CXF messages are then passed to a message observer for processing.
- * 
- * @author Leon Doud
- */
-public class ChatDestination extends AbstractDestination {
+public class ChatDestination extends XMPPDestination {
     
-    private static final Logger LOGGER = LogUtils.getLogger(ChatDestination.class);
+    private MessageReceiptStrategy xmppMsgListener = new ChatServerChannel();
 
-    private ConnectionStrategy xmppConnection;
-    private MessageReceiptStrategy messageReceiver = new ChatServerChannel();
-    
     public ChatDestination(EndpointReferenceType ref, EndpointInfo epInfo) {
         super(ref, epInfo);
     }
-    
-    @Override
-    public synchronized void setMessageObserver(MessageObserver observer) {
-        super.setMessageObserver(observer);
-        
-        // Just in case the message observer changes 
-        // pass it along to the XMPP message listener.
-        if (messageReceiver != null && observer != null) {
-            messageReceiver.setMessageObserver(observer);
-        }
-    }
-    
-    public void setConnectionStrategy(ConnectionStrategy strat) {
-        xmppConnection = strat;
-    }
-    
-    @Override
-    protected void activate() {
-        super.activate();
-        LOGGER.info("Destination activation");
-        
-        // Setup to process messages before connecting.
-        messageReceiver.setMessageObserver(getMessageObserver());
-        xmppConnection.registerListener(messageReceiver);
-        xmppConnection.activate();
-    }
-    
-    @Override
-    protected void deactivate() {
-        super.deactivate();
-        LOGGER.info("Destination deactivation");
-        
-        xmppConnection.unregisterListener(messageReceiver);
-        xmppConnection.deactivate();
-    }
 
     @Override
-    protected Conduit getInbuiltBackChannel(Message msg) {
-        return msg.getExchange().getConduit(msg);
-    }
-
-    @Override
-    protected Logger getLogger() {
-        return LOGGER;
+    protected MessageReceiptStrategy getMessageStrategy() {
+        return xmppMsgListener;
     }
 }

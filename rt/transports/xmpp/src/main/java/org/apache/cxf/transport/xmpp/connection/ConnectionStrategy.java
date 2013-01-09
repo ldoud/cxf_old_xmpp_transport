@@ -42,7 +42,7 @@ public interface ConnectionStrategy {
     
     /**
      * Request the XMPP connection is made.
-     * @return True if connection is active or was previously active
+     * @return True if connection was just activated or was previously active
      */
     boolean activate();
 

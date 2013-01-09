@@ -30,7 +30,7 @@
 
     <cxf:bus name="cxf"/>
     
-    <bean class="org.apache.cxf.transport.xmpp.chat.XMPPTransportFactory">
+    <bean class="org.apache.cxf.transport.xmpp.chat.ChatTransportFactory">
     	<property name="bus" ref="cxf"/>
     </bean>
 
@@ -38,7 +38,7 @@
 	<jaxws:endpoint 
 		id="HelloWorld" 
 		address="xmpp:" 
-		transportId="http://cxf.apache.org/transports/xmpp"
+		transportId="http://cxf.apache.org/transports/xmpp/chat"
 		implementor="test.xmpp.service.HelloWorldService">
 		
 	</jaxws:endpoint>

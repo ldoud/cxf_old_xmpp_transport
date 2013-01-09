@@ -26,12 +26,16 @@ import java.util.logging.Logger;
 
 import javax.security.auth.callback.CallbackHandler;
 
+import org.apache.cxf.Bus;
 import org.apache.cxf.common.logging.LogUtils;
+import org.apache.cxf.endpoint.Server;
+import org.apache.cxf.feature.AbstractFeature;
+import org.apache.cxf.transport.Destination;
 import org.jivesoftware.smack.ChatManagerListener;
 import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.XMPPException;
 
-public class BasicConnection implements ConnectionStrategy {
+public class BasicConnection extends AbstractFeature implements ConnectionStrategy {
     
     private static final Logger LOGGER = LogUtils.getLogger(BasicConnection.class);
     
@@ -106,4 +110,14 @@ public class BasicConnection implements ConnectionStrategy {
         }
     }
 
+    @Override
+    public void initialize(Server server, Bus bus) {
+        Destination dest = server.getDestination();
+        if (dest instanceof XMPPDestination) {
+            XMPPDestination xmppService = (XMPPDestination)dest;
+            xmppService.setConnectionStrategy(this);
+        } else {
+            LOGGER.severe("This feature only supports XMPP services");
+        }
+    }
 }

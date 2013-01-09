@@ -20,8 +20,8 @@
 package org.apache.cxf.transport.xmpp.chat;
 
 import org.apache.cxf.service.model.EndpointInfo;
-import org.apache.cxf.transport.xmpp.strategy.MessageReceiptStrategy;
-import org.apache.cxf.transport.xmpp.strategy.XMPPDestination;
+import org.apache.cxf.transport.xmpp.messaging.MessageReceiptStrategy;
+import org.apache.cxf.transport.xmpp.messaging.XMPPDestination;
 import org.apache.cxf.ws.addressing.EndpointReferenceType;
 
 public class ChatDestination extends XMPPDestination {

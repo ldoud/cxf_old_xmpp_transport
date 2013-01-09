@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.cxf.transport.xmpp.strategy;
+package org.apache.cxf.transport.xmpp.messaging;
 
 import org.apache.cxf.transport.MessageObserver;
 

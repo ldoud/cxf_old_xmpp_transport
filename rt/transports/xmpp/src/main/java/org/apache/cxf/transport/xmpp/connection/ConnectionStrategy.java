@@ -17,7 +17,11 @@
  * under the License.
  */
 
-package org.apache.cxf.transport.xmpp.strategy;
+package org.apache.cxf.transport.xmpp.connection;
+
+import javax.security.auth.callback.CallbackHandler;
+
+import org.apache.cxf.transport.xmpp.messaging.MessageReceiptStrategy;
 
 /**
  * Isolate the XMPP API from the transport code.
@@ -25,9 +29,22 @@ package org.apache.cxf.transport.xmpp.strategy;
 public interface ConnectionStrategy {
     
     /**
-     * Request the XMPP connection is made.
+     * This must be set before activating the connection. 
+     * @param xmppServerName The name or IP of the XMPP server
      */
-    void activate();
+    void setServer(String xmppServerName);
+    
+    /**
+     * This must be set before activating the connection. 
+     * @param userCredentials The credentials used to log into the XMPP server
+     */
+    void setAuthorizationMechanism(CallbackHandler userCredentials);
+    
+    /**
+     * Request the XMPP connection is made.
+     * @return True if connection is active or was previously active
+     */
+    boolean activate();
 
     /**
      * Request the XMPP connection is closed.

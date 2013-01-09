@@ -28,7 +28,7 @@ import org.apache.cxf.message.Exchange;
 import org.apache.cxf.message.ExchangeImpl;
 import org.apache.cxf.message.MessageImpl;
 import org.apache.cxf.transport.MessageObserver;
-import org.apache.cxf.transport.xmpp.strategy.MessageReceiptStrategy;
+import org.apache.cxf.transport.xmpp.messaging.MessageReceiptStrategy;
 import org.jivesoftware.smack.Chat;
 import org.jivesoftware.smack.ChatManagerListener;
 import org.jivesoftware.smack.MessageListener;

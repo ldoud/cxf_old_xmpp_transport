@@ -17,22 +17,26 @@
  * under the License.
  */
 
-package org.apache.cxf.transport.xmpp.connection;
+package org.apache.cxf.transport.xmpp.messaging;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.security.auth.callback.CallbackHandler;
 
 import org.apache.cxf.common.logging.LogUtils;
-import org.apache.cxf.transport.xmpp.messaging.MessageReceiptStrategy;
 import org.jivesoftware.smack.ChatManagerListener;
 import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.XMPPException;
 
-public class BasicConnectionStrategy implements ConnectionStrategy {
+public class BasicConnection implements ConnectionStrategy {
     
-    private static final Logger LOGGER = LogUtils.getLogger(BasicConnectionStrategy.class);
+    private static final Logger LOGGER = LogUtils.getLogger(BasicConnection.class);
+    
+    // Holds listeners until XMPP connection is made.
+    private List<MessageReceiptStrategy> unregisteredListeners = new ArrayList<MessageReceiptStrategy>();
     
     private String xmppServer;
     private CallbackHandler credentials;
@@ -52,6 +56,11 @@ public class BasicConnectionStrategy implements ConnectionStrategy {
     public synchronized boolean activate() {
         if (xmppConnection == null) {
             xmppConnection = new XMPPConnection(xmppServer, credentials);
+            
+            // Add listeners that were added before activation.
+            for (MessageReceiptStrategy xmppListener : unregisteredListeners) {
+                registerListener(xmppListener);
+            }
         }
         
         if (!xmppConnection.isConnected()) {
@@ -77,8 +86,12 @@ public class BasicConnectionStrategy implements ConnectionStrategy {
 
     @Override
     public void registerListener(MessageReceiptStrategy xmppListener) {
-        if (xmppListener instanceof ChatManagerListener) {
+        if (xmppConnection == null) {
+            unregisteredListeners.add(xmppListener);
+            
+        } else if (xmppListener instanceof ChatManagerListener) {
             xmppConnection.getChatManager().addChatListener((ChatManagerListener)xmppListener);
+            
         } else {
             LOGGER.severe("Received unsupported XMPP listener: " + xmppListener.getClass().getName());
         }

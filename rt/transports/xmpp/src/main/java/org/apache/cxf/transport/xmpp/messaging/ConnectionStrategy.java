@@ -17,11 +17,10 @@
  * under the License.
  */
 
-package org.apache.cxf.transport.xmpp.connection;
+package org.apache.cxf.transport.xmpp.messaging;
 
 import javax.security.auth.callback.CallbackHandler;
 
-import org.apache.cxf.transport.xmpp.messaging.MessageReceiptStrategy;
 
 /**
  * Isolate the XMPP API from the transport code.

@@ -27,7 +27,6 @@ import org.apache.cxf.service.model.EndpointInfo;
 import org.apache.cxf.transport.AbstractDestination;
 import org.apache.cxf.transport.Conduit;
 import org.apache.cxf.transport.MessageObserver;
-import org.apache.cxf.transport.xmpp.connection.ConnectionStrategy;
 import org.apache.cxf.ws.addressing.EndpointReferenceType;
 
 /**

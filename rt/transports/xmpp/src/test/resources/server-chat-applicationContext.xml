@@ -34,12 +34,24 @@
     	<property name="bus" ref="cxf"/>
     </bean>
 
-
+<!-- 
+    <bean id="usernamePassword" class="org.apache.cxf.transport.xmpp.messaging.UsernamePasswordAuth"/>
+     -->
 	<jaxws:endpoint 
 		id="HelloWorld" 
 		address="xmpp:" 
 		transportId="http://cxf.apache.org/transports/xmpp/chat"
 		implementor="test.xmpp.service.HelloWorldService">
+		
+	  <jaxws:features>
+	  <!--  
+        <bean class="org.apache.cxf.transport.xmpp.messaging.BasicConnection">
+          <property name="authorizationMechanism" ref="usernamePassword"/>
+          <property name="server" value="localhost"/>
+        </bean>
+        -->
+        <bean class="org.apache.cxf.transport.xmpp.messaging.BasicConnection"/>
+      </jaxws:features>
 		
 	</jaxws:endpoint>
 

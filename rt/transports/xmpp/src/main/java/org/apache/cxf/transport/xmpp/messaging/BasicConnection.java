@@ -59,7 +59,9 @@ public class BasicConnection extends AbstractFeature implements ConnectionStrate
     @Override
     public synchronized boolean activate() {
         if (xmppConnection == null) {
-            xmppConnection = new XMPPConnection(xmppServer, credentials);
+            // TODO use credentials
+//            xmppConnection = new XMPPConnection(xmppServer, credentials);
+            xmppConnection = new XMPPConnection("localhost");
             
             // Add listeners that were added before activation.
             for (MessageReceiptStrategy xmppListener : unregisteredListeners) {
@@ -70,6 +72,10 @@ public class BasicConnection extends AbstractFeature implements ConnectionStrate
         if (!xmppConnection.isConnected()) {
             try {
                 xmppConnection.connect();
+                
+                // TODO use credentials
+                xmppConnection.login("service1", "service1", null);
+                LOGGER.info("Connection made as user: " + xmppConnection.getUser());
                 
             } catch (XMPPException connectionError) {
                 LOGGER.log(Level.SEVERE, 

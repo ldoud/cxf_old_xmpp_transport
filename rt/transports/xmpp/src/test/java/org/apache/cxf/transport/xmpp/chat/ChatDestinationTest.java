@@ -38,4 +38,11 @@ public class ChatDestinationTest {
         
         Thread.sleep(30 * 60 * 1000);
     }
+    
+    public static void main(String[] args) throws Exception {
+        ClassPathXmlApplicationContext context = 
+            new ClassPathXmlApplicationContext("server-chat-applicationContext.xml");
+        
+        Thread.sleep(30 * 60 * 1000);
+    }
 }

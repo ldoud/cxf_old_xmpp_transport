@@ -21,9 +21,7 @@ package org.apache.cxf.transport.xmpp.chat;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.util.logging.Logger;
 
-import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.message.Exchange;
 import org.apache.cxf.message.ExchangeImpl;
 import org.apache.cxf.message.MessageImpl;
@@ -34,8 +32,6 @@ import org.jivesoftware.smack.ChatManagerListener;
 import org.jivesoftware.smack.MessageListener;
 
 public class ChatServerChannel implements MessageReceiptStrategy, MessageListener, ChatManagerListener {
-    
-    private static final Logger LOGGER = LogUtils.getLogger(ChatServerChannel.class);
     
     // This object triggers the Apache CXF processing of a SOAP message.
     private MessageObserver cxfMsgObserver;
@@ -58,8 +54,6 @@ public class ChatServerChannel implements MessageReceiptStrategy, MessageListene
      */
     @Override
     public void processMessage(Chat chatSession, org.jivesoftware.smack.packet.Message xmppChatMsg) {
-        LOGGER.info("Processing chat message: " + xmppChatMsg.getBody());
-        
         // The contents of the XMPP message is a SOAP message.
         // Put the SOAP message into a CXF message.
         org.apache.cxf.message.Message cxfMsg = new MessageImpl();

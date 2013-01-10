@@ -61,7 +61,7 @@ public class BasicConnection extends AbstractFeature implements ConnectionStrate
         if (xmppConnection == null) {
             // TODO use credentials
 //            xmppConnection = new XMPPConnection(xmppServer, credentials);
-            xmppConnection = new XMPPConnection("localhost");
+            xmppConnection = new XMPPConnection(xmppServer);
             
             // Add listeners that were added before activation.
             for (MessageReceiptStrategy xmppListener : unregisteredListeners) {

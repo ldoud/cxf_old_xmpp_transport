@@ -66,21 +66,25 @@ public abstract class XMPPDestination extends AbstractDestination {
     @Override
     protected void activate() {
         super.activate();
-        LOGGER.info("Destination activation");
         
         // Setup to process messages before connecting.
         getMessageStrategy().setMessageObserver(getMessageObserver());
         xmppConnection.registerListener(getMessageStrategy());
         xmppConnection.activate();
+        
+        LOGGER.info("Service started: " 
+            + getEndpointInfo().getService().getName().toString());
     }
     
     @Override
     protected void deactivate() {
         super.deactivate();
-        LOGGER.info("Destination deactivation");
         
         xmppConnection.unregisterListener(getMessageStrategy());
         xmppConnection.deactivate();
+        
+        LOGGER.info("Service stopped: " 
+            + getEndpointInfo().getService().getName().toString());        
     }
 
     @Override

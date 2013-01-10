@@ -50,7 +50,9 @@
           <property name="server" value="localhost"/>
         </bean>
         -->
-        <bean class="org.apache.cxf.transport.xmpp.messaging.BasicConnection"/>
+        <bean class="org.apache.cxf.transport.xmpp.messaging.BasicConnection">
+          <property name="server" value="localhost"/>
+        </bean>
       </jaxws:features>
 		
 	</jaxws:endpoint>

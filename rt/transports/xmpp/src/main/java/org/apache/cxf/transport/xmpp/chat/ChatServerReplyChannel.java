@@ -21,9 +21,7 @@ package org.apache.cxf.transport.xmpp.chat;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.logging.Logger;
 
-import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.io.CachedOutputStream;
 import org.apache.cxf.message.Message;
 import org.apache.cxf.transport.Conduit;
@@ -34,8 +32,6 @@ import org.jivesoftware.smack.Chat;
 import org.jivesoftware.smack.XMPPException;
 
 public class ChatServerReplyChannel implements Conduit {
-    
-    private static final Logger LOGGER = LogUtils.getLogger(ChatServerReplyChannel.class);
     
     private MessageObserver msgObserver;
     private Chat xmppChat;
@@ -71,7 +67,6 @@ public class ChatServerReplyChannel implements Conduit {
         soapResponse.writeCacheTo(replyMsg);
 
         try {
-            LOGGER.info("Sending chat response: " + replyMsg.toString());
             xmppChat.sendMessage(replyMsg.toString());
         } catch (XMPPException e) {
             throw new IOException(e);

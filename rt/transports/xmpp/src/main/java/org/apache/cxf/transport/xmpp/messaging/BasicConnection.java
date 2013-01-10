@@ -24,8 +24,6 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import javax.security.auth.callback.CallbackHandler;
-
 import org.apache.cxf.Bus;
 import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.endpoint.Server;
@@ -43,7 +41,7 @@ public class BasicConnection extends AbstractFeature implements ConnectionStrate
     private List<MessageReceiptStrategy> unregisteredListeners = new ArrayList<MessageReceiptStrategy>();
     
     private String xmppServer;
-    private CallbackHandler credentials;
+    private Credentials credentials;
     private XMPPConnection xmppConnection;
     
     @Override
@@ -52,15 +50,13 @@ public class BasicConnection extends AbstractFeature implements ConnectionStrate
     }
 
     @Override
-    public void setAuthorizationMechanism(CallbackHandler auth) {
+    public void setAuthorizationMechanism(Credentials auth) {
         credentials = auth;
     }
     
     @Override
     public synchronized boolean activate() {
         if (xmppConnection == null) {
-            // TODO use credentials
-//            xmppConnection = new XMPPConnection(xmppServer, credentials);
             xmppConnection = new XMPPConnection(xmppServer);
             
             // Add listeners that were added before activation.
@@ -71,10 +67,10 @@ public class BasicConnection extends AbstractFeature implements ConnectionStrate
         
         if (!xmppConnection.isConnected()) {
             try {
+                // Need to connect before logging in.
                 xmppConnection.connect();
+                xmppConnection.login(credentials.getUsername(), credentials.getPassword(), null);
                 
-                // TODO use credentials
-                xmppConnection.login("service1", "service1", null);
                 LOGGER.info("Connection made as user: " + xmppConnection.getUser());
                 
             } catch (XMPPException connectionError) {

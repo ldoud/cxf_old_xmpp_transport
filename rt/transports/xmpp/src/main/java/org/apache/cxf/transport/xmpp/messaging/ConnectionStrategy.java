@@ -19,9 +19,6 @@
 
 package org.apache.cxf.transport.xmpp.messaging;
 
-import javax.security.auth.callback.CallbackHandler;
-
-
 /**
  * Isolate the XMPP API from the transport code.
  */
@@ -37,7 +34,7 @@ public interface ConnectionStrategy {
      * This must be set before activating the connection. 
      * @param userCredentials The credentials used to log into the XMPP server
      */
-    void setAuthorizationMechanism(CallbackHandler userCredentials);
+    void setAuthorizationMechanism(Credentials userCredentials);
     
     /**
      * Request the XMPP connection is made.

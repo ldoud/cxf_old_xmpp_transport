@@ -65,8 +65,7 @@ public class ChatTransportFactory extends AbstractTransportFactory implements De
         EndpointReferenceType epRefType = new EndpointReferenceType();
         epRefType.setAddress(address);
         
-        ChatDestination dest = new ChatDestination(epRefType, endpointInfo);
-        return dest;
+        return new ChatDestination(epRefType, endpointInfo);
     }
 
 }

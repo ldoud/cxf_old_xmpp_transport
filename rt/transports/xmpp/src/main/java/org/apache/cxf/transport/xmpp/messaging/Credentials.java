@@ -17,29 +17,27 @@
  * under the License.
  */
 
-package org.apache.cxf.transport.xmpp.chat;
+package org.apache.cxf.transport.xmpp.messaging;
 
-import org.junit.Test;
-
-import org.springframework.context.support.ClassPathXmlApplicationContext;
-
-public class ChatDestinationTest {
-//    
-//    public static void main(String[] args) throws Exception {
-//        new ClassPathXmlApplicationContext("server-chat-applicationContext.xml");
-//        Thread.sleep(30 * 60 * 1000);
-//    }
-
-    @Test
-    public void twoWayMethod() throws Exception {
-//        new ClassPathXmlApplicationContext("server-chat-applicationContext.xml");
-//        
-//        Thread.sleep(30 * 60 * 1000);
+public class Credentials {
+    
+    private String username;
+    private String password;
+    
+    public String getUsername() {
+        return username;
     }
     
-    public static void main(String[] args) throws Exception {
-        new ClassPathXmlApplicationContext("server-chat-applicationContext.xml");
-        
-        Thread.sleep(30 * 60 * 1000);
+    public void setUsername(String username) {
+        this.username = username;
     }
+    
+    public String getPassword() {
+        return password;
+    }
+    
+    public void setPassword(String password) {
+        this.password = password;
+    }
+    
 }

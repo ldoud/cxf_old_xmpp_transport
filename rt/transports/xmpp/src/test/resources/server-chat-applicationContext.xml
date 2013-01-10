@@ -25,18 +25,19 @@
 		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
 		http://cxf.apache.org/core http://cxf.apache.org/schemas/core.xsd
 		http://cxf.apache.org/jaxws http://cxf.apache.org/schemas/jaxws.xsd
-		http://cxf.apache.org/simple http://cxf.apache.org/schemas/simple.xsd
-">
+		http://cxf.apache.org/simple http://cxf.apache.org/schemas/simple.xsd">
 
     <cxf:bus name="cxf"/>
     
     <bean class="org.apache.cxf.transport.xmpp.chat.ChatTransportFactory">
     	<property name="bus" ref="cxf"/>
     </bean>
+    
+    <bean id="usernamePassword" class="org.apache.cxf.transport.xmpp.messaging.Credentials">
+    	<property name="username" value="service1"/>
+    	<property name="password" value="service1"/>
+    </bean>
 
-<!-- 
-    <bean id="usernamePassword" class="org.apache.cxf.transport.xmpp.messaging.UsernamePasswordAuth"/>
-     -->
 	<jaxws:endpoint 
 		id="HelloWorld" 
 		address="xmpp:" 
@@ -44,13 +45,8 @@
 		implementor="test.xmpp.service.HelloWorldService">
 		
 	  <jaxws:features>
-	  <!--  
         <bean class="org.apache.cxf.transport.xmpp.messaging.BasicConnection">
           <property name="authorizationMechanism" ref="usernamePassword"/>
-          <property name="server" value="localhost"/>
-        </bean>
-        -->
-        <bean class="org.apache.cxf.transport.xmpp.messaging.BasicConnection">
           <property name="server" value="localhost"/>
         </bean>
       </jaxws:features>

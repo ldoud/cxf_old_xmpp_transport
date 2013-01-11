@@ -66,6 +66,7 @@ public class ChatServerChannel implements MessageReceiptStrategy, MessageListene
         msgExchange.setConduit(new ChatServerReplyChannel(chatSession));
         cxfMsg.setExchange(msgExchange);
 
+        // Use the get method so access to the message observer is thread safe.
         getMessageObserver().onMessage(cxfMsg);
     }
     

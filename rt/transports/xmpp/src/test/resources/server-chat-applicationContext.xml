@@ -40,12 +40,11 @@
 
 	<jaxws:endpoint 
 		id="HelloWorld" 
-		address="xmpp:" 
 		transportId="http://cxf.apache.org/transports/xmpp/chat"
 		implementor="test.xmpp.service.HelloWorldService">
 		
 	  <jaxws:features>
-        <bean class="org.apache.cxf.transport.xmpp.messaging.BasicConnection">
+        <bean class="org.apache.cxf.transport.xmpp.messaging.XMPPService">
           <property name="authorizationMechanism" ref="usernamePassword"/>
           <property name="server" value="localhost"/>
         </bean>

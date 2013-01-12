@@ -33,9 +33,9 @@ import org.jivesoftware.smack.ChatManagerListener;
 import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.XMPPException;
 
-public class BasicConnection extends AbstractFeature implements ConnectionStrategy {
+public class XMPPService extends AbstractFeature implements ConnectionStrategy {
     
-    private static final Logger LOGGER = LogUtils.getLogger(BasicConnection.class);
+    private static final Logger LOGGER = LogUtils.getLogger(XMPPService.class);
     
     // Holds listeners until XMPP connection is made.
     private List<MessageReceiptStrategy> unregisteredListeners = new ArrayList<MessageReceiptStrategy>();

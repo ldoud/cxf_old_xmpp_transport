@@ -23,9 +23,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
-import javax.annotation.Resource;
-
-import org.apache.cxf.Bus;
 import org.apache.cxf.service.model.EndpointInfo;
 import org.apache.cxf.transport.AbstractTransportFactory;
 import org.apache.cxf.transport.Destination;
@@ -47,11 +44,6 @@ public class ChatTransportFactory extends AbstractTransportFactory implements De
     public ChatTransportFactory() {
         super();
         setTransportIds(DEFAULT_NAMESPACES);
-    }
-
-    @Resource(name = "cxf")
-    public void setBus(Bus bus) {
-        super.setBus(bus);
     }
 
     /**

@@ -17,13 +17,12 @@
  * under the License.
  */
 
-package org.apache.cxf.transport.xmpp.chat;
+package org.apache.cxf.transport.xmpp.messaging;
 
 import java.io.OutputStream;
 
 import org.apache.cxf.io.CachedOutputStream;
 import org.apache.cxf.message.Message;
-import org.jivesoftware.smack.Chat;
 
 import org.junit.Test;
 
@@ -33,13 +32,13 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class ChatServerReplyChannelTest {
+public class XMPPReplyChannelTest {
 
     @Test
     public void closeMessage() throws Exception {
         // Setup reply channel with a mock chat session.
-        Chat chatSession = mock(Chat.class);
-        ChatServerReplyChannel replyChannel = new ChatServerReplyChannel(chatSession);
+        MessageSendStrategy replyStrategy = mock(MessageSendStrategy.class);
+        XMPPReplyChannel replyChannel = new XMPPReplyChannel(replyStrategy);
         
         // Create test CXF message.
         String message = "<soap>foo</soap>";
@@ -52,7 +51,7 @@ public class ChatServerReplyChannelTest {
         replyChannel.close(cxfMessage);
         
         // Verify the observer was triggered once with correct contents
-        verify(chatSession, times(1)).sendMessage(message);
+        verify(replyStrategy, times(1)).sendMessage(message);
         
         outputStream.close();
     }
@@ -60,8 +59,8 @@ public class ChatServerReplyChannelTest {
     @Test
     public void prepareMessage() throws Exception {
         // Setup reply channel with a mock chat session.
-        Chat chatSession = mock(Chat.class);
-        ChatServerReplyChannel replyChannel = new ChatServerReplyChannel(chatSession);
+        MessageSendStrategy replyStrategy = mock(MessageSendStrategy.class);
+        XMPPReplyChannel replyChannel = new XMPPReplyChannel(replyStrategy);
         
         // Create test CXF message.
         Message cxfMessage = mock(Message.class);

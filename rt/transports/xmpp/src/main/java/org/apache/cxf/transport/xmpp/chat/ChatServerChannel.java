@@ -21,17 +21,25 @@ package org.apache.cxf.transport.xmpp.chat;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
+import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.message.Exchange;
 import org.apache.cxf.message.ExchangeImpl;
 import org.apache.cxf.message.MessageImpl;
 import org.apache.cxf.transport.MessageObserver;
 import org.apache.cxf.transport.xmpp.messaging.MessageReceiptStrategy;
+import org.apache.cxf.transport.xmpp.messaging.MessageSendStrategy;
+import org.apache.cxf.transport.xmpp.messaging.XMPPReplyChannel;
 import org.jivesoftware.smack.Chat;
 import org.jivesoftware.smack.ChatManagerListener;
 import org.jivesoftware.smack.MessageListener;
+import org.jivesoftware.smack.XMPPException;
 
 public class ChatServerChannel implements MessageReceiptStrategy, MessageListener, ChatManagerListener {
+    
+    private static final Logger LOGGER = LogUtils.getLogger(ChatServerChannel.class);
     
     // This object triggers the Apache CXF processing of a SOAP message.
     private MessageObserver cxfMsgObserver;
@@ -53,7 +61,7 @@ public class ChatServerChannel implements MessageReceiptStrategy, MessageListene
      * {@inheritDoc}
      */
     @Override
-    public void processMessage(Chat chatSession, org.jivesoftware.smack.packet.Message xmppChatMsg) {
+    public void processMessage(final Chat chatSession, org.jivesoftware.smack.packet.Message xmppChatMsg) {
         // The contents of the XMPP message is a SOAP message.
         // Put the SOAP message into a CXF message.
         org.apache.cxf.message.Message cxfMsg = new MessageImpl();
@@ -63,7 +71,16 @@ public class ChatServerChannel implements MessageReceiptStrategy, MessageListene
         // The back channel is how the return value is sent to the client.
         // So its necessary to use the same chat session that received the message.
         Exchange msgExchange = new ExchangeImpl();
-        msgExchange.setConduit(new ChatServerReplyChannel(chatSession));
+        msgExchange.setConduit(new XMPPReplyChannel(new MessageSendStrategy() {
+            @Override
+            public void sendMessage(String msg) {
+                try {
+                    chatSession.sendMessage(msg);
+                } catch (XMPPException e) {
+                    LOGGER.log(Level.SEVERE, "Unable to reply via chat", e);
+                }
+            }
+        }));
         cxfMsg.setExchange(msgExchange);
 
         // Use the get method so access to the message observer is thread safe.

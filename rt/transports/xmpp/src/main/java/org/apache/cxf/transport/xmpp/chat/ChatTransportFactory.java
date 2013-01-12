@@ -32,7 +32,6 @@ import org.apache.cxf.transport.Destination;
 import org.apache.cxf.transport.DestinationFactory;
 import org.apache.cxf.ws.addressing.AttributedURIType;
 import org.apache.cxf.ws.addressing.EndpointReferenceType;
-import org.jivesoftware.smack.XMPPException;
 
 /**
  * After receiving a Bus reference this class registers itself as an XMPPDestination. Web service providers
@@ -45,7 +44,7 @@ public class ChatTransportFactory extends AbstractTransportFactory implements De
     public static final List<String> DEFAULT_NAMESPACES = Arrays
     .asList("http://cxf.apache.org/transports/xmpp/chat");
   
-    public ChatTransportFactory() throws XMPPException {
+    public ChatTransportFactory() {
         super();
         setTransportIds(DEFAULT_NAMESPACES);
     }

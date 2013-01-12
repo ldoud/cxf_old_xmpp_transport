@@ -29,6 +29,7 @@ import org.apache.cxf.message.Exchange;
 import org.apache.cxf.message.Message;
 import org.apache.cxf.transport.Conduit;
 import org.apache.cxf.transport.MessageObserver;
+import org.apache.cxf.transport.xmpp.messaging.XMPPReplyChannel;
 
 import org.jivesoftware.smack.Chat;
 import org.junit.Test;
@@ -73,7 +74,7 @@ public class ChatServerChannelTest {
         // Verify that the reply channel was created.
         Conduit replyChannel = msgExchange.getConduit(argument.getValue());
         Assert.assertNotNull("Reply channel created", replyChannel);
-        Assert.assertTrue("Replying via chat", replyChannel instanceof ChatServerReplyChannel);
+        Assert.assertTrue("Replying via chat", replyChannel instanceof XMPPReplyChannel);
     }
     
     public static void main(String[] args) throws Exception {

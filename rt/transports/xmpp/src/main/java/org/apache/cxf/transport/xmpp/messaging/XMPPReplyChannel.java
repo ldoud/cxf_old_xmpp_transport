@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.cxf.transport.xmpp.chat;
+package org.apache.cxf.transport.xmpp.messaging;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -28,16 +28,14 @@ import org.apache.cxf.transport.Conduit;
 import org.apache.cxf.transport.MessageObserver;
 import org.apache.cxf.ws.addressing.EndpointReferenceType;
 import org.apache.cxf.wsdl.EndpointReferenceUtils;
-import org.jivesoftware.smack.Chat;
-import org.jivesoftware.smack.XMPPException;
 
-public class ChatServerReplyChannel implements Conduit {
+public class XMPPReplyChannel implements Conduit {
     
     private MessageObserver msgObserver;
-    private Chat xmppChat;
+    private MessageSendStrategy xmppConnection;
 
-    public ChatServerReplyChannel(Chat chat) {
-        xmppChat = chat;
+    public XMPPReplyChannel(MessageSendStrategy xmppSendStrat) {
+        xmppConnection = xmppSendStrat;
     }
 
     @Override
@@ -65,12 +63,7 @@ public class ChatServerReplyChannel implements Conduit {
         CachedOutputStream soapResponse = (CachedOutputStream)msg.getContent(OutputStream.class);
         StringBuilder replyMsg = new StringBuilder();
         soapResponse.writeCacheTo(replyMsg);
-
-        try {
-            xmppChat.sendMessage(replyMsg.toString());
-        } catch (XMPPException e) {
-            throw new IOException(e);
-        }
+        xmppConnection.sendMessage(replyMsg.toString());
     }
 
     @Override

@@ -26,14 +26,14 @@ import org.apache.cxf.ws.addressing.EndpointReferenceType;
 
 public class ChatDestination extends XMPPDestination {
     
-    private MessageReceiptStrategy xmppMsgListener = new ChatServerChannel();
+    private MessageReceiptStrategy xmppChat = new ChatDestinationChannel();
 
     public ChatDestination(EndpointReferenceType ref, EndpointInfo epInfo) {
         super(ref, epInfo);
     }
 
     @Override
-    protected MessageReceiptStrategy getMessageStrategy() {
-        return xmppMsgListener;
+    protected MessageReceiptStrategy getMessageReceiptStrategy() {
+        return xmppChat;
     }
 }

@@ -32,9 +32,9 @@ import org.apache.cxf.wsdl.EndpointReferenceUtils;
 public class XMPPReplyChannel implements Conduit {
     
     private MessageObserver msgObserver;
-    private MessageSendStrategy xmppConnection;
+    private MessageReplyStrategy xmppConnection;
 
-    public XMPPReplyChannel(MessageSendStrategy xmppSendStrat) {
+    public XMPPReplyChannel(MessageReplyStrategy xmppSendStrat) {
         xmppConnection = xmppSendStrat;
     }
 
@@ -63,7 +63,7 @@ public class XMPPReplyChannel implements Conduit {
         CachedOutputStream soapResponse = (CachedOutputStream)msg.getContent(OutputStream.class);
         StringBuilder replyMsg = new StringBuilder();
         soapResponse.writeCacheTo(replyMsg);
-        xmppConnection.sendMessage(replyMsg.toString());
+        xmppConnection.sendReplyMessage(replyMsg.toString());
     }
 
     @Override

@@ -23,6 +23,8 @@ import org.apache.cxf.transport.MessageObserver;
 
 /**
  * An XMPP message listener will implement this interface.
+ * The listener receives SOAP messages over XMPP.
+ * Then takes these messages and passes them to the MessageObserver.
  */
 public interface MessageReceiptStrategy {
 

@@ -19,8 +19,11 @@
 
 package org.apache.cxf.transport.xmpp.messaging;
 
-public interface MessageSendStrategy {
+/**
+ * Used by destinations to reply to a conduit.
+ */
+public interface MessageReplyStrategy {
     
-    void sendMessage(String msg);
-
+    void sendReplyMessage(String msg);
+    
 }

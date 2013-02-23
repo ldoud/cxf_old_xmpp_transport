@@ -25,8 +25,11 @@ import java.util.List;
 
 import org.apache.cxf.service.model.EndpointInfo;
 import org.apache.cxf.transport.AbstractTransportFactory;
+import org.apache.cxf.transport.Conduit;
+import org.apache.cxf.transport.ConduitInitiator;
 import org.apache.cxf.transport.Destination;
 import org.apache.cxf.transport.DestinationFactory;
+import org.apache.cxf.transport.xmpp.messaging.ConnectionStrategy;
 import org.apache.cxf.ws.addressing.AttributedURIType;
 import org.apache.cxf.ws.addressing.EndpointReferenceType;
 
@@ -36,7 +39,7 @@ import org.apache.cxf.ws.addressing.EndpointReferenceType;
  * 
  * @author Leon Doud
  */
-public class ChatTransportFactory extends AbstractTransportFactory implements DestinationFactory {
+public class ChatTransportFactory extends AbstractTransportFactory implements DestinationFactory, ConduitInitiator {
 
     public static final List<String> DEFAULT_NAMESPACES = Arrays
     .asList("http://cxf.apache.org/transports/xmpp/chat");
@@ -49,7 +52,7 @@ public class ChatTransportFactory extends AbstractTransportFactory implements De
     /**
      * {@inheritDoc}
      */
-    public Destination getDestination(EndpointInfo endpointInfo) throws IOException {
+    public Destination getDestination(EndpointInfo endpointInfo) {
         AttributedURIType address = new AttributedURIType();
         address.setValue(endpointInfo.getAddress());
         
@@ -57,6 +60,17 @@ public class ChatTransportFactory extends AbstractTransportFactory implements De
         epRefType.setAddress(address);
         
         return new ChatDestination(epRefType, endpointInfo);
+    }
+
+    @Override
+    public Conduit getConduit(EndpointInfo endpointInfo) throws IOException {
+        return getConduit(endpointInfo, endpointInfo.getTarget());
+    }
+
+    @Override
+    public Conduit getConduit(EndpointInfo endpointInfo, EndpointReferenceType endpointType) throws IOException {
+        System.out.println(endpointInfo.getProperty(ConnectionStrategy.class.getName()));
+        return new ChatConduit(endpointType);
     }
 
 }

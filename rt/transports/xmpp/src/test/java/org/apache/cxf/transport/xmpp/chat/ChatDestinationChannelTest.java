@@ -37,11 +37,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.context.support.ClassPathXmlApplicationContext;
 
-public class ChatServerChannelTest {
+public class ChatDestinationChannelTest {
 
     @Test
     public void processMessage() throws Exception {
-        ChatServerChannel channel = new ChatServerChannel();
+        ChatDestinationChannel channel = new ChatDestinationChannel();
         
         // Setup a mock message observer that will get the message.
         MessageObserver msgObserver = Mockito.mock(MessageObserver.class);

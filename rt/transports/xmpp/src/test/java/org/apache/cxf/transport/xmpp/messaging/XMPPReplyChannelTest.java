@@ -37,7 +37,7 @@ public class XMPPReplyChannelTest {
     @Test
     public void closeMessage() throws Exception {
         // Setup reply channel with a mock chat session.
-        MessageSendStrategy replyStrategy = mock(MessageSendStrategy.class);
+        MessageReplyStrategy replyStrategy = mock(MessageReplyStrategy.class);
         XMPPReplyChannel replyChannel = new XMPPReplyChannel(replyStrategy);
         
         // Create test CXF message.
@@ -51,7 +51,7 @@ public class XMPPReplyChannelTest {
         replyChannel.close(cxfMessage);
         
         // Verify the observer was triggered once with correct contents
-        verify(replyStrategy, times(1)).sendMessage(message);
+        verify(replyStrategy, times(1)).sendReplyMessage(message);
         
         outputStream.close();
     }
@@ -59,7 +59,7 @@ public class XMPPReplyChannelTest {
     @Test
     public void prepareMessage() throws Exception {
         // Setup reply channel with a mock chat session.
-        MessageSendStrategy replyStrategy = mock(MessageSendStrategy.class);
+        MessageReplyStrategy replyStrategy = mock(MessageReplyStrategy.class);
         XMPPReplyChannel replyChannel = new XMPPReplyChannel(replyStrategy);
         
         // Create test CXF message.

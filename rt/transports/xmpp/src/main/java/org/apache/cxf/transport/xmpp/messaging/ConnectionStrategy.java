@@ -19,6 +19,11 @@
 
 package org.apache.cxf.transport.xmpp.messaging;
 
+import java.io.IOException;
+
+import org.apache.cxf.message.Message;
+import org.apache.cxf.transport.MessageObserver;
+
 /**
  * Isolate the XMPP API from the transport code.
  */
@@ -50,4 +55,6 @@ public interface ConnectionStrategy {
     void registerListener(MessageReceiptStrategy xmppListener);
     
     void unregisterListener(MessageReceiptStrategy xmppListener);
+    
+    void sendChatMessage(Message chatMsg, String jid, MessageObserver replyChannel) throws IOException;
 }

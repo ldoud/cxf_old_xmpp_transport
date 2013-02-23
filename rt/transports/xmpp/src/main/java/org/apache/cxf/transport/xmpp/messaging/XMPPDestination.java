@@ -46,7 +46,9 @@ public abstract class XMPPDestination extends AbstractDestination {
         super(ref, epInfo);
     }
     
-    protected abstract MessageReceiptStrategy getMessageStrategy();
+    public void setConnectionStrategy(ConnectionStrategy strat) {
+        xmppConnection = strat;
+    }
     
     @Override
     public synchronized void setMessageObserver(MessageObserver observer) {
@@ -54,25 +56,23 @@ public abstract class XMPPDestination extends AbstractDestination {
         
         // Just in case the message observer changes 
         // pass it along to the XMPP message listener.
-        if (getMessageStrategy() != null && observer != null) {
-            getMessageStrategy().setMessageObserver(observer);
+        if (getMessageReceiptStrategy() != null && observer != null) {
+            getMessageReceiptStrategy().setMessageObserver(observer);
         }
     }
     
-    public void setConnectionStrategy(ConnectionStrategy strat) {
-        xmppConnection = strat;
-    }
-    
+    protected abstract MessageReceiptStrategy getMessageReceiptStrategy();
+ 
     @Override
     protected void activate() {
         super.activate();
         
         // Setup to process messages before connecting.
-        getMessageStrategy().setMessageObserver(getMessageObserver());
-        xmppConnection.registerListener(getMessageStrategy());
+        getMessageReceiptStrategy().setMessageObserver(getMessageObserver());
+        xmppConnection.registerListener(getMessageReceiptStrategy());
         xmppConnection.activate();
         
-        LOGGER.info("Service started: " 
+        getLogger().info("Service started: " 
             + getEndpointInfo().getService().getName().toString());
     }
     
@@ -80,10 +80,10 @@ public abstract class XMPPDestination extends AbstractDestination {
     protected void deactivate() {
         super.deactivate();
         
-        xmppConnection.unregisterListener(getMessageStrategy());
+        xmppConnection.unregisterListener(getMessageReceiptStrategy());
         xmppConnection.deactivate();
         
-        LOGGER.info("Service stopped: " 
+        getLogger().info("Service stopped: " 
             + getEndpointInfo().getService().getName().toString());        
     }
 

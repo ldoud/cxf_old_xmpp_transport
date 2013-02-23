@@ -30,16 +30,16 @@ import org.apache.cxf.message.ExchangeImpl;
 import org.apache.cxf.message.MessageImpl;
 import org.apache.cxf.transport.MessageObserver;
 import org.apache.cxf.transport.xmpp.messaging.MessageReceiptStrategy;
-import org.apache.cxf.transport.xmpp.messaging.MessageSendStrategy;
+import org.apache.cxf.transport.xmpp.messaging.MessageReplyStrategy;
 import org.apache.cxf.transport.xmpp.messaging.XMPPReplyChannel;
 import org.jivesoftware.smack.Chat;
 import org.jivesoftware.smack.ChatManagerListener;
 import org.jivesoftware.smack.MessageListener;
 import org.jivesoftware.smack.XMPPException;
 
-public class ChatServerChannel implements MessageReceiptStrategy, MessageListener, ChatManagerListener {
+public class ChatDestinationChannel implements MessageReceiptStrategy, MessageListener, ChatManagerListener {
     
-    private static final Logger LOGGER = LogUtils.getLogger(ChatServerChannel.class);
+    private static final Logger LOGGER = LogUtils.getLogger(ChatDestinationChannel.class);
     
     // This object triggers the Apache CXF processing of a SOAP message.
     private MessageObserver cxfMsgObserver;
@@ -71,9 +71,9 @@ public class ChatServerChannel implements MessageReceiptStrategy, MessageListene
         // The back channel is how the return value is sent to the client.
         // So its necessary to use the same chat session that received the message.
         Exchange msgExchange = new ExchangeImpl();
-        msgExchange.setConduit(new XMPPReplyChannel(new MessageSendStrategy() {
+        msgExchange.setConduit(new XMPPReplyChannel(new MessageReplyStrategy() {
             @Override
-            public void sendMessage(String msg) {
+            public void sendReplyMessage(String msg) {
                 try {
                     chatSession.sendMessage(msg);
                 } catch (XMPPException e) {

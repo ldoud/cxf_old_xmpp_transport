@@ -28,6 +28,15 @@ import org.apache.cxf.transport.MessageObserver;
 import org.apache.cxf.transport.xmpp.messaging.ConnectionStrategy;
 import org.apache.cxf.ws.addressing.AttributedURIType;
 import org.apache.cxf.ws.addressing.EndpointReferenceType;
+import org.apache.vysper.mina.TCPEndpoint;
+import org.apache.vysper.storage.StorageProviderRegistry;
+import org.apache.vysper.storage.inmemory.MemoryStorageProviderRegistry;
+import org.apache.vysper.xmpp.addressing.EntityImpl;
+import org.apache.vysper.xmpp.authorization.AccountManagement;
+import org.apache.vysper.xmpp.server.XMPPServer;
+
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.springframework.context.support.ClassPathXmlApplicationContext;
@@ -35,6 +44,38 @@ import org.springframework.context.support.ClassPathXmlApplicationContext;
 import test.xmpp.service.HelloWorld;
 
 public class ChatConduitTest {
+    
+    private static final String CERT_FILENAME = "bogus_mina_tls.cert";
+    private static final String CERT_PASSWORD = "boguspw";
+    
+    private static final String DOMAIN_NAME = "localhost.localdomain";
+    private static final String USER1_NAME = "service1@" + DOMAIN_NAME;
+    private static final String USER1_PASSWORD = "password";
+    
+    private static XMPPServer server = new XMPPServer(DOMAIN_NAME);
+    
+    @BeforeClass
+    public static void setupXmppServer() throws Exception {
+        server.addEndpoint(new TCPEndpoint());
+        server.setTLSCertificateInfo(ClassLoader.getSystemResourceAsStream(CERT_FILENAME), 
+                                     CERT_PASSWORD);
+        
+        // Store data in memory.
+        StorageProviderRegistry providerRegistry = new MemoryStorageProviderRegistry();
+        server.setStorageProviderRegistry(providerRegistry);
+        
+        // Create test users.
+        AccountManagement accountManagement = 
+            (AccountManagement) providerRegistry.retrieve(AccountManagement.class);
+        accountManagement.addUser(EntityImpl.parse(USER1_NAME), USER1_PASSWORD);
+        
+        server.start();
+    }
+    
+    @AfterClass
+    public static void cleanupXmppServer() {
+        server.stop();
+    }
 
     @Test
     public void sendMessage() {

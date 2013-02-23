@@ -109,6 +109,14 @@
 			<scope>test</scope>
 		</dependency>
 
+
+		<dependency>
+		    	<groupId>org.apache.vysper</groupId>
+		    	<artifactId>vysper-core</artifactId>
+		    	<version>0.7</version>
+			<scope>test</scope>
+		</dependency>
+
 		<dependency>
 			<groupId>org.apache.cxf</groupId>
 			<artifactId>cxf-testutils</artifactId>

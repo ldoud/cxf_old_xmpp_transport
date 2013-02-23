@@ -50,7 +50,10 @@ public class ChatConduitTest {
     
     private static final String DOMAIN_NAME = "localhost.localdomain";
     private static final String USER1_NAME = "service1@" + DOMAIN_NAME;
-    private static final String USER1_PASSWORD = "password";
+    private static final String USER1_PASSWORD = "service1";
+    
+    private static final String USER2_NAME = "user1@" + DOMAIN_NAME;
+    private static final String USER2_PASSWORD = "user1";
     
     private static XMPPServer server = new XMPPServer(DOMAIN_NAME);
     
@@ -112,6 +115,8 @@ public class ChatConduitTest {
     public static void main(String[] args) throws Exception {
 //        new ClassPathXmlApplicationContext("server-chat-applicationContext.xml");
         
+        ChatConduitTest.setupXmppServer();
+        
         ClassPathXmlApplicationContext context = 
             new ClassPathXmlApplicationContext("client-chat-applicationContext.xml");
         
@@ -120,5 +125,7 @@ public class ChatConduitTest {
         serviceClient.yell("one way message");
         
         Thread.sleep(30 * 60 * 1000);
+        
+        ChatConduitTest.cleanupXmppServer();
     }
 }

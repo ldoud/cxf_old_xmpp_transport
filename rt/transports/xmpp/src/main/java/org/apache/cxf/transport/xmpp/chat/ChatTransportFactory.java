@@ -29,10 +29,14 @@ import org.apache.cxf.transport.Conduit;
 import org.apache.cxf.transport.ConduitInitiator;
 import org.apache.cxf.transport.Destination;
 import org.apache.cxf.transport.DestinationFactory;
-import org.apache.cxf.transport.xmpp.messaging.Credentials;
 import org.apache.cxf.ws.addressing.AttributedURIType;
 import org.apache.cxf.ws.addressing.EndpointReferenceType;
 
+import tigase.jaxmpp.core.client.exceptions.JaxmppException;
+import tigase.jaxmpp.core.client.observer.Listener;
+import tigase.jaxmpp.core.client.xmpp.modules.chat.Chat;
+import tigase.jaxmpp.core.client.xmpp.modules.chat.MessageModule;
+import tigase.jaxmpp.core.client.xmpp.modules.chat.MessageModule.MessageEvent;
 import tigase.jaxmpp.j2se.Jaxmpp;
 
 /**
@@ -63,7 +67,8 @@ public class ChatTransportFactory extends AbstractTransportFactory implements De
         EndpointReferenceType epRefType = new EndpointReferenceType();
         epRefType.setAddress(address);
         
-        return new ChatDestination(epRefType, endpointInfo);
+        //return new ChatDestination(epRefType, endpointInfo);
+        return null;
     }
 
     @Override
@@ -73,15 +78,23 @@ public class ChatTransportFactory extends AbstractTransportFactory implements De
 
     @Override
     public Conduit getConduit(EndpointInfo endpointInfo, EndpointReferenceType endpointType) throws IOException {
+        // Create new connection and conduit.
         Jaxmpp contact = new Jaxmpp();
-//        contact.getConnectionConfiguration().setCredentialsCallback(credentialsCallback)
+        final ChatConduit conduit = new ChatConduit(endpointType, contact);
         
-        //ChatConduit conduit = new ChatConduit(endpointType, contact);
-        return new ChatConduit(endpointType, contact);
+        // Listen to chat messages that maybe replies to SOAP requests.
+        contact.addListener(Chat.MessageReceived, new Listener<MessageModule.MessageEvent>() {
+            @Override
+            public void handleEvent(MessageEvent mesgReceived) throws JaxmppException {
+                conduit.handleResponseMesg(mesgReceived);
+            }
+        });        
+        
+        return conduit;
     }
     
-    public void setClientCredentials(Credentials creds) {
-        clientLoginInfo = creds;
-    }
+//    public void setClientCredentials(Credentials creds) {
+//        clientLoginInfo = creds;
+//    }
 
 }

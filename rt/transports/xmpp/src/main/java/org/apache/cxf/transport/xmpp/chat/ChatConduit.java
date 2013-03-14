@@ -102,7 +102,7 @@ public class ChatConduit extends AbstractConduit {
         msg.setContent(OutputStream.class, new CachedOutputStream());
     }
 
-    protected void handleResponseMesg(MessageEvent mesgReceived) {
+    public void handleResponseMesg(MessageEvent mesgReceived) {
         Exchange msgExchange = exchangeCorrelationTable.remove(mesgReceived.getChat().getId());
 
         if (msgExchange != null) {

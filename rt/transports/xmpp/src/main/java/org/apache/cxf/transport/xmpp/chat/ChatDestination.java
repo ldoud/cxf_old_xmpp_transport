@@ -19,21 +19,38 @@
 
 package org.apache.cxf.transport.xmpp.chat;
 
+import java.util.logging.Logger;
+
+import org.apache.cxf.common.logging.LogUtils;
+import org.apache.cxf.message.Message;
 import org.apache.cxf.service.model.EndpointInfo;
-import org.apache.cxf.transport.xmpp.messaging.MessageReceiptStrategy;
-import org.apache.cxf.transport.xmpp.messaging.XMPPDestination;
+import org.apache.cxf.transport.AbstractDestination;
+import org.apache.cxf.transport.Conduit;
+import org.apache.cxf.transport.Destination;
 import org.apache.cxf.ws.addressing.EndpointReferenceType;
 
-public class ChatDestination extends XMPPDestination {
-    
-    private MessageReceiptStrategy xmppChat = new ChatDestinationChannel();
+import tigase.jaxmpp.j2se.Jaxmpp;
 
-    public ChatDestination(EndpointReferenceType ref, EndpointInfo epInfo) {
-        super(ref, epInfo);
+public class ChatDestination extends AbstractDestination implements Destination {
+
+    private static final Logger LOGGER = LogUtils.getLogger(ChatDestination.class);
+
+    private Jaxmpp xmppConnection = new Jaxmpp();
+    
+    public ChatDestination(EndpointReferenceType ref, EndpointInfo ei, Jaxmpp connectionToXmppServer) {
+        super(ref, ei);
+        xmppConnection = connectionToXmppServer;
     }
 
     @Override
-    protected MessageReceiptStrategy getMessageReceiptStrategy() {
-        return xmppChat;
+    protected Conduit getInbuiltBackChannel(Message msg) {
+        return null;
     }
+
+    @Override
+    protected Logger getLogger() {
+        return LOGGER;
+    }
+    
+    
 }

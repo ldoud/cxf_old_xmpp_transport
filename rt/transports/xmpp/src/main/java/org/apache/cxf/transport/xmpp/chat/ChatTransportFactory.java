@@ -29,9 +29,11 @@ import org.apache.cxf.transport.Conduit;
 import org.apache.cxf.transport.ConduitInitiator;
 import org.apache.cxf.transport.Destination;
 import org.apache.cxf.transport.DestinationFactory;
-import org.apache.cxf.transport.xmpp.messaging.ConnectionStrategy;
+import org.apache.cxf.transport.xmpp.messaging.Credentials;
 import org.apache.cxf.ws.addressing.AttributedURIType;
 import org.apache.cxf.ws.addressing.EndpointReferenceType;
+
+import tigase.jaxmpp.j2se.Jaxmpp;
 
 /**
  * After receiving a Bus reference this class registers itself as an XMPPDestination. Web service providers
@@ -43,6 +45,8 @@ public class ChatTransportFactory extends AbstractTransportFactory implements De
 
     public static final List<String> DEFAULT_NAMESPACES = Arrays
     .asList("http://cxf.apache.org/transports/xmpp/chat");
+    
+    //private Credentials clientLoginInfo;
   
     public ChatTransportFactory() {
         super();
@@ -69,8 +73,15 @@ public class ChatTransportFactory extends AbstractTransportFactory implements De
 
     @Override
     public Conduit getConduit(EndpointInfo endpointInfo, EndpointReferenceType endpointType) throws IOException {
-        System.out.println(endpointInfo.getProperty(ConnectionStrategy.class.getName()));
-        return new ChatConduit(endpointType);
+        Jaxmpp contact = new Jaxmpp();
+//        contact.getConnectionConfiguration().setCredentialsCallback(credentialsCallback)
+        
+        //ChatConduit conduit = new ChatConduit(endpointType, contact);
+        return new ChatConduit(endpointType, contact);
+    }
+    
+    public void setClientCredentials(Credentials creds) {
+        clientLoginInfo = creds;
     }
 
 }

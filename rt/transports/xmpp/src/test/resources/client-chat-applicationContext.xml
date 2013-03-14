@@ -28,6 +28,7 @@ http://cxf.apache.org/jaxws http://cxf.apache.org/schemas/jaxws.xsd"
     
     <bean class="org.apache.cxf.transport.xmpp.chat.ChatTransportFactory">
     	<property name="bus" ref="cxf"/>
+    	<property name="clientCredentials" ref="usernamePassword"/>
     </bean>
     
     <bean id="usernamePassword" class="org.apache.cxf.transport.xmpp.messaging.Credentials">
@@ -35,18 +36,16 @@ http://cxf.apache.org/jaxws http://cxf.apache.org/schemas/jaxws.xsd"
     	<property name="password" value="user1"/>
     </bean>
     
+    <bean id="usernamePassword" class="org.apache.cxf.transport.xmpp.messaging.Credentials">
+    	<property name="username" value="user1"/>
+    	<property name="password" value="user1"/>
+    </bean>
+        
+    
 	<jaxws:client id="helloClient"
         serviceClass="test.xmpp.service.HelloWorld"
         transportId="http://cxf.apache.org/transports/xmpp/chat"
-        address="service1@localhost.localdomain">
-        
-	  <jaxws:features>
-        <bean class="org.apache.cxf.transport.xmpp.messaging.XMPPService">
-          <property name="authorizationMechanism" ref="usernamePassword"/>
-          <property name="server" value="localhost"/>
-        </bean>
-      </jaxws:features>
-              
+        address="service1@localhost.localdomain">             
     </jaxws:client>
 	
 </beans>

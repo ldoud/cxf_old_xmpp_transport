@@ -37,6 +37,8 @@ import tigase.jaxmpp.core.client.observer.Listener;
 import tigase.jaxmpp.core.client.xmpp.modules.chat.Chat;
 import tigase.jaxmpp.core.client.xmpp.modules.chat.MessageModule;
 import tigase.jaxmpp.core.client.xmpp.modules.chat.MessageModule.MessageEvent;
+import tigase.jaxmpp.core.client.xmpp.modules.presence.PresenceModule;
+import tigase.jaxmpp.core.client.xmpp.modules.presence.PresenceModule.PresenceEvent;
 import tigase.jaxmpp.j2se.Jaxmpp;
 
 /**
@@ -89,6 +91,14 @@ public class ChatTransportFactory extends AbstractTransportFactory implements De
                 conduit.handleResponseMesg(mesgReceived);
             }
         });        
+        
+        contact.addListener(PresenceModule.ContactChangedPresence, new Listener<PresenceModule.PresenceEvent>() {
+
+            @Override
+            public void handleEvent(PresenceEvent be) throws JaxmppException {
+                System.out.println("Presence jid:" + be.getJid() + " status:" + be.getPresence().getAsString());
+            }
+        });
         
         return conduit;
     }

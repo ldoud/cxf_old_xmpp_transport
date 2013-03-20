@@ -35,11 +35,11 @@ public class ChatDestination extends AbstractDestination implements Destination 
 
     private static final Logger LOGGER = LogUtils.getLogger(ChatDestination.class);
 
-    private Jaxmpp xmppConnection = new Jaxmpp();
+//    private Jaxmpp xmppConnection = new Jaxmpp();
     
     public ChatDestination(EndpointReferenceType ref, EndpointInfo ei, Jaxmpp connectionToXmppServer) {
         super(ref, ei);
-        xmppConnection = connectionToXmppServer;
+//        xmppConnection = connectionToXmppServer;
     }
 
     @Override

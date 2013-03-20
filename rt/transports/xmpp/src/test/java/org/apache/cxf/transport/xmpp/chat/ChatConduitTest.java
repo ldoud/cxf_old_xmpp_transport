@@ -39,10 +39,10 @@ import org.apache.vysper.xmpp.modules.roster.RosterItem;
 import org.apache.vysper.xmpp.modules.roster.SubscriptionType;
 import org.apache.vysper.xmpp.modules.roster.persistence.RosterManager;
 import org.apache.vysper.xmpp.server.XMPPServer;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
+
+
 
 import tigase.jaxmpp.core.client.AsyncCallback;
 import tigase.jaxmpp.core.client.XMPPException.ErrorCondition;
@@ -59,7 +59,7 @@ public class ChatConduitTest {
     private static final String CERT_FILENAME = "bogus_mina_tls.cert";
     private static final String CERT_PASSWORD = "boguspw";
 
-    private static final String DOMAIN_NAME = "localhost.localdomain";
+    private static final String DOMAIN_NAME = "vysper.org";
     private static final String USER2_NAME = "service1@" + DOMAIN_NAME;
     private static final String USER2_PASSWORD = "service1";
 
@@ -68,7 +68,7 @@ public class ChatConduitTest {
 
     private XMPPServer server = new XMPPServer(DOMAIN_NAME);
 
-    @Before
+
     public void setupXmppServer() throws Exception {
         server.addEndpoint(new TCPEndpoint());
         server.setTLSCertificateInfo(ClassLoader.getSystemResourceAsStream(CERT_FILENAME), CERT_PASSWORD);
@@ -90,17 +90,35 @@ public class ChatConduitTest {
                                                                AskSubscriptionType.ASK_SUBSCRIBED));
         rosterManager.addContact(userEntity, new RosterItem(serviceEntity, SubscriptionType.BOTH,
                                                             AskSubscriptionType.ASK_SUBSCRIBED));
+        
+        for (RosterItem ri : rosterManager.retrieve(userEntity)) {
+            System.out.println(userEntity.getBareJID() + ":" + ri.getName());
+        }
+        
+        for (RosterItem ri : rosterManager.retrieve(serviceEntity)) {
+            System.out.println(userEntity.getBareJID() + ":" + ri.getName());
+        }
 
         server.start();
-        server.stop();
     }
 
-    @After
     public void cleanupXmppServer() {
         server.stop();
     }
 
     @Test
+    public void chatConduit() throws JaxmppException {
+        Jaxmpp connectionToXmppServer = new Jaxmpp();
+        connectionToXmppServer.getConnectionConfiguration().setServer(DOMAIN_NAME);
+        connectionToXmppServer.getConnectionConfiguration().setUserJID(USER2_NAME);
+        connectionToXmppServer.getConnectionConfiguration().setUserPassword(USER2_PASSWORD);
+        connectionToXmppServer.login();  
+        
+//        ChatConduit conduit = new ChatConduit(null, connectionToXmppServer);    
+        System.out.println("Test");
+    }
+    
+    
     public void chatMessageRegistration() throws JaxmppException {
         Jaxmpp conduitConnection = new Jaxmpp();
         Jaxmpp clientConnection = new Jaxmpp();

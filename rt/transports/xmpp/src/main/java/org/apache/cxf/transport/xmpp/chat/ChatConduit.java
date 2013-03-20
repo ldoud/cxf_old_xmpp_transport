@@ -38,10 +38,8 @@ import org.apache.cxf.ws.addressing.EndpointReferenceType;
 
 import tigase.jaxmpp.core.client.JID;
 import tigase.jaxmpp.core.client.exceptions.JaxmppException;
-import tigase.jaxmpp.core.client.observer.Listener;
 import tigase.jaxmpp.core.client.xml.XMLException;
 import tigase.jaxmpp.core.client.xmpp.modules.chat.Chat;
-import tigase.jaxmpp.core.client.xmpp.modules.chat.MessageModule;
 import tigase.jaxmpp.core.client.xmpp.modules.chat.MessageModule.MessageEvent;
 import tigase.jaxmpp.j2se.Jaxmpp;
 
@@ -57,16 +55,7 @@ public class ChatConduit extends AbstractConduit {
 
     public ChatConduit(EndpointReferenceType refType, Jaxmpp connectionToXmppServer) {
         super(refType);
-
         xmppConnection = connectionToXmppServer;
-
-        // Listen to chat messages that maybe replies to SOAP requests.
-        xmppConnection.addListener(Chat.MessageReceived, new Listener<MessageModule.MessageEvent>() {
-            @Override
-            public void handleEvent(MessageEvent mesgReceived) throws JaxmppException {
-                handleResponseMesg(mesgReceived);
-            }
-        });
     }
 
     @Override
